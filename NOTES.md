@@ -41,6 +41,14 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   only. Sparse: `research/ios16-root.simg` (sha256 f6536bdd...). D22AP ADT from the IM4P (LZFSE) ->
   umi ADT has /product. Boot image `shim/out/umi-ios1.img` (sha256 f99ad339..., 0082 kernel, cmdline
   README + cpus=4 sweetfb_hz=30 sweettouch=0 sweetkeys=0 sweetusb=0, console kept on).
+- **MILESTONE: iOS USERLAND ON umi (2026-10-20 22:00).** userdata flashed 21:35-21:41 with
+  `fastboot -S 512M flash userdata research/ios16-root.img` (raw image; `-S` on the .simg fails with
+  "Error reading sparse file"; without -S the bootloader's missing getvar max-download-size made
+  fastboot send 3.4 GB at once). Writes ack in 0.001 s; the bootloader then ignored commands until a
+  Power+VolDown restart. Front-panel USB gave error -71 on bulk transfers; rear port OK (512 MB in
+  13.5 s). Boot of `umi-ios1.img`: Apple logo at ~1 min, then launchd, the expected crash/relaunch
+  loop of bluetoothd / fairplayd.H2 / xpcproxy, and sampler output for backboardd and SpringBoard[26]
+  (both alive). Console text covers the panel; next: `sweetfb_noconsole=1`.
 
 ## Agent handoff / active work (2026-10-15, latest)
 
