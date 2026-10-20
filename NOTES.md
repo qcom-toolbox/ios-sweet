@@ -33,6 +33,14 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   `cannot mount root, errno = 19`, mountroot retries. Kernel UFS driver works on SM8250.
   NEXT (destructive, needs explicit user OK right before): build the iOS 16.7.x iPhone X HFS+ root
   (README step 2) and flash it to userdata.
+- **Root image built (2026-10-20 20:59, PC only):** `research/ios16-root.img` (16G, 11.6G used) from
+  20H392 D22AP OS 087-86698-044 + SystemOS 087-86593-047 + AppOS 087-86715-047 (remotezip, no full
+  IPSW), apfs-fuse built from source (`-DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_CXX_FLAGS="-include
+  cstdint"`), sweet-root-tweaks applied (7 _PanicOnCrash, 2 CommCenter; no mobileactivationd
+  container -> data ark skipped). Linux fsck_hfs keeps reporting "Volume header needs minor repair"
+  only. Sparse: `research/ios16-root.simg` (sha256 f6536bdd...). D22AP ADT from the IM4P (LZFSE) ->
+  umi ADT has /product. Boot image `shim/out/umi-ios1.img` (sha256 f99ad339..., 0082 kernel, cmdline
+  README + cpus=4 sweetfb_hz=30 sweettouch=0 sweetkeys=0 sweetusb=0, console kept on).
 
 ## Agent handoff / active work (2026-10-15, latest)
 
