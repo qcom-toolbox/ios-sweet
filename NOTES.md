@@ -68,6 +68,18 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   sweetusb=0 sweetsample=lsd,SpringBoard sweetnull=lsd,SpringBoard,backboardd).** No input yet.
   NEXT: touch (FocalTech `fts` at I2C 3-0049, QUP 0xa94000 on umi; sweet driver has a FocalTech
   path but sweet MMIO/GPIO/RPMh constants), then PMIC keys (PM8150 family).
+- **Patch 0083 (1613c08, CI 39496202549): umi touch + volume-up**, board chosen at runtime by
+  `sweet_board_is_umi()` (sweet_rpmh.c; ADT root compatible "xiaomi,umi"). Touch IC is NOT
+  FocalTech: DT `st,fts`, driver Xiaomi `fts_521` (CONFIG_TOUCHSCREEN_ST_FTS_V521) = ST FTM5,
+  I2C 0x49, FIFO read 0x86 (8-byte events 0x13 enter / 0x23 motion / 0x33 leave, x=(e3&15)<<8|e2,
+  y=e4<<4|e3>>4), scan on = A0 00 01. QUP1 SE5 0xa94000; GCC vote 0x52008 bits 18-21 + 27,
+  RCG 0x18600 (DFS: pick the XO/1 level), branches 0x18004/0x18008/0x23138/0x23140/0x185fc;
+  TLMM SOUTH 0xf500000: SDA/SCL 36/37 mux 1, reset 38, IRQ 39, avdd GPIO 69 (= disp_vddio, only
+  driven if not already high); vdd RPMh ldoc1 1800 mV; umi cmd-db at reserved 0x80860000/0x20000.
+  Keys: arbiter/PON identical to sweet; volume-up PM8150 GPIO6 = PPID 0x0c5. SweetHID maps with the
+  boot framebuffer size. Sources: research/umi-src (Xiaomi umi-q-oss), live DT. Syntax-checked with
+  `research/tools/xnu-cc-sys.py` (tools/xnu-cc.py using /usr/bin/clang) on the CI buildtree.
+  Test boot: umi-ios4 cmdline without sweettouch=0/sweetkeys=0 (touch starts 45 s after UFS init).
 
 ## Agent handoff / active work (2026-10-15, latest)
 
