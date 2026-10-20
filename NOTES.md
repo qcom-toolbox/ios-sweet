@@ -21,6 +21,18 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   fork workflows need enabling in the GitHub UI. Guarded shim diag 4b33137
   (`shim/out/shim-diag-gic2-umi.img`) booted once but no photo was taken.
 - USB: fastboot drops (error -71) came from a bad cable and a low battery (19 %).
+- **ROOT CAUSE of the SWEET FB hang: my mkadt umi change.** SweetCPU matches IONameMatch
+  'qcom,kryo470' (0018); umi CPU nodes said only 'qcom,kryo585', so no CPU driver attached and
+  boot waited forever for gIOAllCPUInitializedKey (no SWEET CPU lines). `startup_debug=1` showed
+  the drivers start in PE_lockdown_iokit. Fixed in 511b765 (kryo585 + kryo470). The shim GIC diag
+  (4b33137) showed ABL leaves no SGI/PPI enabled; VTIMER/PTIMER 30 irqs/300 ms, SGI 10/10,
+  PSCI CPU_ON OK for CPUs 1-7 (MPIDR 0x81000100..0x81000700). 0082 was not the fix; harmless, kept.
+- **MILESTONE (20:01, fork CI 39463125994 = 0082 kernel, image `shim/out/umi-xnu-0082b.img`,
+  cmdline above + startup_debug=1, read-only):** `BSD root: ufsroot0, major 1, minor 0` ->
+  `hfs_ValidateHFSPlusVolumeHeader: unknown Volume Signature : a165` (encrypted Android data) ->
+  `cannot mount root, errno = 19`, mountroot retries. Kernel UFS driver works on SM8250.
+  NEXT (destructive, needs explicit user OK right before): build the iOS 16.7.x iPhone X HFS+ root
+  (README step 2) and flash it to userdata.
 
 ## Agent handoff / active work (2026-10-15, latest)
 
