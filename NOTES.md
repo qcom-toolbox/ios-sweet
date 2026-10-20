@@ -49,6 +49,14 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   13.5 s). Boot of `umi-ios1.img`: Apple logo at ~1 min, then launchd, the expected crash/relaunch
   loop of bluetoothd / fairplayd.H2 / xpcproxy, and sampler output for backboardd and SpringBoard[26]
   (both alive). Console text covers the panel; next: `sweetfb_noconsole=1`.
+- **First-boot wait (log `research/logs/umi-ios1.txt`, pulled from TWRP with sweet-log-pull.sh):**
+  4/4 CPUs, UFS read-write, HFS mounted, backboardd display on + 1125x2436 surfaces + swaps; only
+  CRASH driverkitd once. SpringBoard t0 waits in os_unfair_lock <- _LSContextInitCommon <-
+  LSApplicationRecord <- CCSModuleRepository init; t1 in
+  `___LAUNCH_SERVICES_IS_RESEEDING_ITS_DATABASE_AND_MAY_BLOCK__` -> sync XPC to lsd: first-boot
+  LaunchServices database build. Symbolicated with `ipsw dyld a2s` (ipsw 3.1.739 in ~/.local/bin)
+  on the SystemOS cryptex dyld cache (apfs-fuse -o ro), address - slide.
+  Note: a normal reboot lands in TWRP (Android has no data); do not format data there.
 
 ## Agent handoff / active work (2026-10-15, latest)
 
