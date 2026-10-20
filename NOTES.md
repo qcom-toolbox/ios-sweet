@@ -80,6 +80,11 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   boot framebuffer size. Sources: research/umi-src (Xiaomi umi-q-oss), live DT. Syntax-checked with
   `research/tools/xnu-cc-sys.py` (tools/xnu-cc.py using /usr/bin/clang) on the CI buildtree.
   Test boot: umi-ios4 cmdline without sweettouch=0/sweetkeys=0 (touch starts 45 s after UFS init).
+- **0083 on hardware (23:04, `shim/out/umi-ios5.img`, log research/logs/umi-ios5.txt):** KEYS WORK
+  (arb 0x50010000, pon-apid 13, volup apid 25 subtype 0x11; power/volup/voldown press+release).
+  Touch stopped at `GCC branch 0x18008 halted (0x80000002)`: wrap1 s-ahb is in HW clock gating
+  (CBCR bit 1) and reads CLK_OFF while idle. DFS level 0 is XO/1 on umi. **0084**: skip the halt
+  check for HW-gated branches, as Linux clk_branch_check_halt() does.
 
 ## Agent handoff / active work (2026-10-15, latest)
 
