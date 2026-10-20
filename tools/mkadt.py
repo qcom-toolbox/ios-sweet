@@ -123,7 +123,16 @@ def build(seed=None, qemu=False, highmem=False, board='sweet'):
         ('effective-production-status-ap', u32(0)),
         ('certificate-security-mode', u32(1)),
         ('effective-security-mode-sep', u32(1)),
-    ], [node('memory-map', [ph()]),
+    ] + ([
+        # iBoot puts the radio MACs here. MobileGestalt's WifiAddress (needed
+        # for the A11 UniqueDeviceID, which lsd asks for while seeding the
+        # LaunchServices database) reads mac-address-wifi0 and otherwise
+        # waits forever for an IONetworkController to match: with no Wi-Fi
+        # and sweetusb=0 that blocks lsd and SpringBoard on the Apple logo.
+        # Synthetic, locally administered addresses (not the phone's).
+        ('mac-address-wifi0', bytes.fromhex('025357454501')),
+        ('mac-address-bluetooth0', bytes.fromhex('025357454502')),
+    ] if board == 'umi' else []), [node('memory-map', [ph()]),
         # Local boot policy (kern_csr.c): SIP relaxed like `csrutil disable`
         # (lp-sip0: untrusted kexts, unrestricted FS, task_for_pid, kernel
         # debugger, dtrace, nvram), lp-sip1: unauthenticated (unsealed) root.
