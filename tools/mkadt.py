@@ -140,7 +140,10 @@ def build(seed=None, qemu=False, highmem=False, board='sweet'):
         cpu_nodes.append(node(f'cpu{core}', [
             ph(),
             ('device_type', cstr('cpu')),
-            ('compatible', cstr(b['cpu']) + cstr('ARM,v8')),
+            # SweetCPU matches IONameMatch 'qcom,kryo470' (xnu 0018): other
+            # boards keep it as a second entry or no CPU driver attaches and
+            # boot waits forever for gIOAllCPUInitializedKey.
+            ('compatible', cstr(b['cpu']) + (cstr('qcom,kryo470') if b['cpu'] != 'qcom,kryo470' else b'') + cstr('ARM,v8')),
             ('reg', u32(core << 8)),  # actual MPIDR Aff1:Aff0, NOT logical ID
             ('cpu-id', u32(core)),   # descriptive: XNU assigns IDs by DT order
             ('cluster-id', u32(0)),  # descriptive; see ml_parse_cpu_topology
