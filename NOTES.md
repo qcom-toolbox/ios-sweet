@@ -1,5 +1,27 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
+
+Hardware facts and partition backups live outside git in `~/ios-umi-backup/` (UMI-FACTS.md).
+Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --board umi`.
+
+- **Shim diag (7fbacb9) on hardware:** red console shows on the DSI *command-mode* panel with no
+  kick (ABL leaves MDP autorefresh on). UFS 3.0 at 0x1d84000 answers read-only SCSI; GPT parsed,
+  userdata lba 0x680000 (4K), ~211 GiB. Reboot-to-bootloader (IMEM 0x146bf65c) works.
+- **First XNU boot (upstream CI 39158169212 kernel = patch 0081, ADT --board umi, cmdline
+  `debug=0xc serial=3 cpus=1 keepsyms=1 -enable_kprintf_spam -noprogress rd=ufsroot0 wdt=-1
+  wdt_test=no_user_checkin sweetlog=0 sweettouch=0 sweetkeys=0 sweetusb=0`, read-only):**
+  boots through zone init, platform expert, AKS, IOWatchdog, IOCoreSurfaceRoot, HID, battery stub,
+  `SWEET FB: AppleCLCD 1080x2340 stride 4320 at 0x9c000000 ... presented as 1125x2436`, then
+  stops there. Reproduced twice (18:01, 19:00). No SWEET UFS line (busy-poll path would print
+  within 15 s), so the hang is before root lookup. Android uses `GICv3 27 Level arch_timer`.
+- **Hypothesis (unconfirmed):** interrupt storm from sources ABL leaves enabled; XNU only EOIs
+  unknown INTIDs. The first unguarded shim GIC diag (9dc804a) also hung. Patch **0082** (809516a):
+  clean GIC slate + mask unhandled INTIDs + `SWEET GIC: bootloader left ...` log. Not built yet:
+  fork workflows need enabling in the GitHub UI. Guarded shim diag 4b33137
+  (`shim/out/shim-diag-gic2-umi.img`) booted once but no photo was taken.
+- USB: fastboot drops (error -71) came from a bad cable and a low battery (19 %).
+
 ## Agent handoff / active work (2026-10-15, latest)
 
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
