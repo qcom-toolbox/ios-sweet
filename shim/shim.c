@@ -27,6 +27,7 @@
 #define GICR_ICENABLER0		(GICR_SGI + 0x180)
 #define GICR_IPRIORITYR		(GICR_SGI + 0x400)
 #define GICR_ISPENDR0		(GICR_SGI + 0x200)
+#define GICR_ICPENDR0		(GICR_SGI + 0x280)
 #define GICR_ISACTIVER0		(GICR_SGI + 0x300)
 #define GICR_ICFGR1		(GICR_SGI + 0xc04)
 #define SGI_INTID		1
@@ -60,6 +61,7 @@ static volatile uint64_t sec_mpidr[NR_CPUS];
 static volatile uint64_t sec_probe[4];	/* CPU1 redistributor write test */
 static volatile uint32_t irq_count, irq_other, irq_last;
 static volatile int irq_src;
+static uintptr_t irq_gicr;	/* this CPU's redistributor, for the storm guard */
 
 /* ICC_SGI1R_EL1 value targeting the calling core only. */
 static uint64_t sgi_self(unsigned id)
@@ -123,8 +125,8 @@ static void irq_handler(void)
 	irq_last = id;
 	if (id == (uint32_t)irq_src)
 		irq_count++;
-	else
-		irq_other++;
+	else if (++irq_other >= 1000 && irq_gicr && id < 32)
+		wr32(irq_gicr + GICR_ICENABLER0, 1U << id);	/* level storm: mask it */
 	if (id == VTIMER_INTID)
 		wsr("cntv_tval_el0", rsr("cntfrq_el0") / 100);	/* 10 ms */
 	else if (id == PTIMER_INTID)
@@ -316,8 +318,12 @@ static void test_gic(void)
 	uint32_t pri_before = rd32(r + GICR_IPRIORITYR + 16);	/* INTIDs 16..19 */
 	for (int id = 0; id < 32; id++)
 		wr8(r + GICR_IPRIORITYR + id, 0xa0);
+	irq_gicr = r;
+	wr32(r + GICR_ICENABLER0, 0xffffffff);	/* drop whatever ABL left enabled */
+	wr32(r + GICR_ICPENDR0, 0xffffffff);
 	wr32(r + GICR_ISENABLER0, (1U << VTIMER_INTID) | (1U << PTIMER_INTID) | (1U << SGI_INTID));
 	con_hex2("ENABLE", "was=", en_before, "now=", rd32(r + GICR_ISENABLER0));
+	con_hex2("GROUP", "was=", grp, "now=", rd32(r + GICR_IGROUPR0));
 	(void)grp;
 	(void)pri_before;
 
@@ -330,10 +336,13 @@ static void test_gic(void)
 	con_hex2("ICC", "ctlr=", ctlr, "grpen1=", rsr("icc_igrpen1_el1"));
 
 	stage = "gic vtimer";
+	con_str("STEP", "vtimer window");
 	irq_window("VTIMER", r, VTIMER_INTID);
 	stage = "gic ptimer";
+	con_str("STEP", "ptimer window");
 	irq_window("PTIMER", r, PTIMER_INTID);
 	stage = "gic sgi";
+	con_str("STEP", "sgi window");
 	irq_window("SGI1", r, SGI_INTID);
 	wr32(r + GICR_ICENABLER0, 0xffffffff);
 	isb();
@@ -384,8 +393,10 @@ void shim_main(uint64_t dtb)
 
 #if defined(BOARD_UMI)
 	/* umi bring-up (UFS probe already passed): timer IRQ and PSCI SMP, MMU off. */
+	con_str("STEP", "gic");
 	test_gic();
 	con_skip();
+	con_str("STEP", "psci cpu_on x7");
 	test_smp();
 	con_skip();
 	con_str("DIAG", "done, reset in ~3 min");
