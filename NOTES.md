@@ -57,6 +57,17 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   LaunchServices database build. Symbolicated with `ipsw dyld a2s` (ipsw 3.1.739 in ~/.local/bin)
   on the SystemOS cryptex dyld cache (apfs-fuse -o ro), address - slide.
   Note: a normal reboot lands in TWRP (Android has no data); do not format data there.
+- **lsd root cause (boot ios3, sweetsample=lsd):** lsd seeding -> MIInstalledInfoGatherer ->
+  __GenerateBuiltInAppInstallSessionID -> MGCopyAnswer("re6Zb+zwFKJNlkQTUeT+/w" = UniqueDeviceID) ->
+  WifiAddress getter (libMobileGestalt): reads IODeviceTree:/chosen `mac-address-wifi0`, then
+  sdio/wlan/marconi-wifi nodes, else waits forever (MGIOKitSupport.c run loop) for
+  IOServiceMatching("IONetworkController"). No Wi-Fi + sweetusb=0 -> lsd, SpringBoard, backboardd
+  blocked, CPUs idle. Fix 7d47dc8: umi /chosen mac-address-wifi0/-bluetooth0 (synthetic).
+- **MILESTONE: iOS LOCK SCREEN ON umi (2026-10-20 ~22:50, `shim/out/umi-ios4.img`, ADT 7d47dc8,
+  0082 kernel, cmdline: README + cpus=4 sweetfb_noconsole=1 sweetfb_hz=30 sweettouch=0 sweetkeys=0
+  sweetusb=0 sweetsample=lsd,SpringBoard sweetnull=lsd,SpringBoard,backboardd).** No input yet.
+  NEXT: touch (FocalTech `fts` at I2C 3-0049, QUP 0xa94000 on umi; sweet driver has a FocalTech
+  path but sweet MMIO/GPIO/RPMh constants), then PMIC keys (PM8150 family).
 
 ## Agent handoff / active work (2026-10-15, latest)
 
