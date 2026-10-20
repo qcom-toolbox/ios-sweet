@@ -29,8 +29,6 @@
 #define GICR_ISPENDR0		(GICR_SGI + 0x200)
 #define GICR_ISACTIVER0		(GICR_SGI + 0x300)
 #define GICR_ICFGR1		(GICR_SGI + 0xc04)
-#define VTIMER_INTID		19	/* DT: <GIC_PPI 3 ...>, not the usual 27 */
-#define PTIMER_INTID		18	/* DT: <GIC_PPI 2 ...> */
 #define SGI_INTID		1
 
 #define PSCI_VERSION		0x84000000UL
@@ -333,6 +331,8 @@ static void test_gic(void)
 
 	stage = "gic vtimer";
 	irq_window("VTIMER", r, VTIMER_INTID);
+	stage = "gic ptimer";
+	irq_window("PTIMER", r, PTIMER_INTID);
 	stage = "gic sgi";
 	irq_window("SGI1", r, SGI_INTID);
 	wr32(r + GICR_ICENABLER0, 0xffffffff);
@@ -382,12 +382,21 @@ void shim_main(uint64_t dtb)
 	con_str("LOADER", why);
 	con_skip();
 
+#if defined(BOARD_UMI)
+	/* umi bring-up (UFS probe already passed): timer IRQ and PSCI SMP, MMU off. */
+	test_gic();
+	con_skip();
+	test_smp();
+	con_skip();
+	con_str("DIAG", "done, reset in ~3 min");
+#else
 	/* No payload: probe the internal UFS while the MMU is still off. */
 	stage = "ufs";
 	test_ufs();
 	con_skip();
 	/* Keep the probe results on screen (later tests clear it); reset after 3 min. */
 	con_str("UFS", "probe done, reset in ~3 min");
+#endif
 	delay_ms(180000);
 	reset(20);
 
