@@ -86,6 +86,29 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   (CBCR bit 1) and reads CLK_OFF while idle. DFS level 0 is XO/1 on umi. **0084**: skip the halt
   check for HW-gated branches, as Linux clk_branch_check_halt() does.
 
+- **Branch `umi-scanout` (2026-10-21): umi + 0086-0090 (ports from ios-topaz, see `topaz-ports`) + 0091 direct
+  display scanout (topaz 0092-0099/0114 adapted). NOT booted yet; CI-built, compile-checked locally.**
+  What 0091 does, only with boot-arg **`sweetfb_direct=1`** (off by default):
+  - At AppleCLCD start it logs the apps SMMU (0x15000000) SMRs/S2CRs matching the MDP stream id (`sweetfb_sid`,
+    default 0x820) and refuses if the display stream is translated (`sweetfb_direct=2` forces). Then it reads every
+    SSPP (VIG0-3, DMA0-3 at MDP 0xae01000 + 0x4000.. / 0x24000..) and CTL0-5, picks the one pipe whose SRC0_ADDR is
+    the boot framebuffer (0x9c000000) and the one CTL with LM0 stages set; anything else -> off, with a log line.
+  - Full-screen BGRA surfaces of 1080x2340 or 1125x2436 get pixels from a pool of 16 MiB slots at
+    **`sweetfb_pool` (default 0xb0000000) x `sweetfb_slots` (6)**: low RAM that XNU (highmem, above 4 GiB) does not
+    manage, mapped cached (copyback) in kernel and tasks. **Check against umi's live DT /reserved-memory
+    (~/ios-umi-backup) that 0xb0000000-0xb6000000 is free before the first test.**
+  - A frame that is one pool surface: clean dcache (dc cvac) over the panel window, write SRC0_ADDR/YSTRIDE0,
+    CTL_FLUSH = pipe bit | bit 17; latched by the command-mode panel's MDP autorefresh. Direct frames go out every
+    vsync (60 Hz) instead of `sweetfb_hz`; other frames use the CPU copy path and the pipe is pointed back at the
+    boot framebuffer. On-screen surfaces stay "in use" (state page +0x18) until one vsync after replacement.
+  - Panel window x offset rounded to 4 px (16-byte fetch alignment): logical offset is now 20,48 (touch the same).
+  - Panic: PE_panic_hook points the pipe back at the boot framebuffer. Power off: the last direct frame is copied
+    into the boot framebuffer, then faded as before. With direct scanout the kernel console is not visible over
+    iOS frames (it still goes to the persistent log).
+  Test: umi-ios4 cmdline + `sweetfb_direct=1 sweetbusy=60`; look for `SWEET FB: SMMU ...`, `SWEET FB: MDP ...`,
+  `SWEET FB: direct scanout on: <pipe> via CTL<n>`. If the screen freezes on the Apple logo: flush not latched
+  (autorefresh off?) -> next step would be a CTL_START kick (CTL+0x1c) per frame; if garbage: SMMU/pool issue.
+
 ## Agent handoff / active work (2026-10-15, latest)
 
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
