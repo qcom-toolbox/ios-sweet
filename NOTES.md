@@ -109,6 +109,19 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   `SWEET FB: direct scanout on: <pipe> via CTL<n>`. If the screen freezes on the Apple logo: flush not latched
   (autorefresh off?) -> next step would be a CTL_START kick (CTL+0x1c) per frame; if garbage: SMMU/pool issue.
 
+- **First boot of 0091 on umi (2026-10-21 18:05, Mac build, `shim/out/umi-0091-direct.img`, log
+  `research/logs/umi-0091-direct.txt`):** boots to iOS as before (shim built with Homebrew LLVM: wrappers for
+  clang/ld.lld with `-fno-jump-tables` + a strcmp object; minimal mkbootimg v2, byte-identical to stock except
+  second_addr). `SWEET BUSY: round 0: 0 busy services` (0088 works). Direct scanout refused itself as designed:
+  `SMMU sCR0 0x270406 (unmatched streams fault), 87 SMRs`, `SMR4 id 0x820 mask 0x402 -> S2CR 0x4 (translate, cb 4)`:
+  ABL runs the display through context bank 4 (the splash at 0x9c000000 is mapped there), not bypass.
+  Live DT reserved-memory (TWRP): cont_splash 0x9c000000-0x9e300000, disp_rdump 0xb0400000-0xb1400000.
+- **0092:** when the display stream is translated, walk cb4's stage-1 tables (4K granule) and log SCTLR/TCR/TTBR0
+  and the translation of 0x9c000000, 0x9ca00000, 0x9e200000, 0xc0000000; direct scanout turns on only if every
+  pool page is mapped 1:1. Without an explicit `sweetfb_pool`, the pool becomes the free tail of the splash region
+  after the boot framebuffer: 0x9ca00000 + 2 x 12 MiB (`sweetfb_slotsize`, new). Two slots = backboardd's two
+  alternating 1125x2436 surfaces (bpr 4608, 11.2 MB each).
+
 ## Agent handoff / active work (2026-10-15, latest)
 
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
