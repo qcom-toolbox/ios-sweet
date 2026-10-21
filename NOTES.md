@@ -145,6 +145,18 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
 - **0094:** status-based errors, completion matched to the TRE that asked for EOT (late events ignored), recovery
   resets channels even if STOP stays in progress, ST FTS probe retried 5x 100 ms over GPI.
 
+- **0094 on hardware (`research/logs/umi-0094.txt`): touch still fails, and the phone RESETS itself (back to TWRP)
+  ~1 s after the GPI attempts** (0093 too: log ends ~6 lines after `no ST FTS answer`; 0092 without GPI ran 4+ min).
+  No panic text: a hardware/firmware reset. Every write ends XFER_COMPLETE code 16 (UNEXP_ERR) status 0x4 len 0 on
+  its DMA TRE (mainline gpi.c treats code 16 as DMA_TRANS_ABORTED, so 0094's "code 16 is fine" was wrong); the
+  following read's GO puts ch0 in state 0xf (ERROR) and times out. SE STATUS 0x41 after the write.
+  Checked and matching the live DT/Xiaomi source: TREs (CONFIG0 0x220001, GO 0x200001/0x200900, DMA 0x100200),
+  channel contexts, scratch (pair/proto 3/seid 5), pins (36/37 qup13 = mux 1, 2 mA, bias-disable), avdd = GPIO 69
+  (touch_vddio_vreg, fixed regulator, no vdd-supply in DT: the ldoc1 vote is not from the DT).
+  Open suspects: the SMR we add for stream 0x56 (hypervisor/TZ reaction), the IC not ACKing (len 0), the reset after
+  errors. TWRP uses gpi_dmaa00000_gpii0 for the same IC.
+- **0095:** GPI touch path only with `sweettouchgpi=1` (default: log and stop) so the default boot is stable again.
+
 ## Agent handoff / active work (2026-10-15, latest)
 
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
