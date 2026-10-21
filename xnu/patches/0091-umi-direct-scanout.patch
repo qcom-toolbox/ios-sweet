@@ -1,5 +1,5 @@
 diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
-index a967f84..8cdd7a3 100644
+index a967f84..cfdbbb6 100644
 --- a/iokit/Kernel/arm/SweetFramebuffer.cpp
 +++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
 @@ -38,6 +38,9 @@
@@ -216,7 +216,7 @@ index a967f84..8cdd7a3 100644
 +AppleCLCD::setupScanout()
 +{
 +	uint32_t direct = 0, mdp = 0x0ae01000, smmu = 0x15000000, sid = 0x820;
-+	uint32_t pool = 0xb0000000, slots = 6;
++	uint32_t pool = 0xc0000000, slots = 6;     /* umi: free low RAM (0xb0400000 is disp_rdump_region) */
 +
 +	if (!PE_parse_boot_argn("sweetfb_direct", &direct, sizeof(direct)) || direct == 0) {
 +		return;

@@ -94,9 +94,9 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
     SSPP (VIG0-3, DMA0-3 at MDP 0xae01000 + 0x4000.. / 0x24000..) and CTL0-5, picks the one pipe whose SRC0_ADDR is
     the boot framebuffer (0x9c000000) and the one CTL with LM0 stages set; anything else -> off, with a log line.
   - Full-screen BGRA surfaces of 1080x2340 or 1125x2436 get pixels from a pool of 16 MiB slots at
-    **`sweetfb_pool` (default 0xb0000000) x `sweetfb_slots` (6)**: low RAM that XNU (highmem, above 4 GiB) does not
+    **`sweetfb_pool` (default 0xc0000000) x `sweetfb_slots` (6)**: low RAM that XNU (highmem, above 4 GiB) does not
     manage, mapped cached (copyback) in kernel and tasks. **Check against umi's live DT /reserved-memory
-    (~/ios-umi-backup) that 0xb0000000-0xb6000000 is free before the first test.**
+    (checked 2026-10-21 in TWRP: 0xc0000000-0xc6000000 is free; 0xb0400000-0xb1400000 is disp_rdump_region).**
   - A frame that is one pool surface: clean dcache (dc cvac) over the panel window, write SRC0_ADDR/YSTRIDE0,
     CTL_FLUSH = pipe bit | bit 17; latched by the command-mode panel's MDP autorefresh. Direct frames go out every
     vsync (60 Hz) instead of `sweetfb_hz`; other frames use the CPU copy path and the pipe is pointed back at the
