@@ -2,6 +2,20 @@
 
 ## Agent handoff / active work (2026-10-15, latest)
 
+### >>> UPDATE 2026-10-21: ports from ios-topaz (branch `topaz-ports`) <<<
+
+Compared with [MakrSas/ios-topaz](https://github.com/MakrSas/ios-topaz) (port of this tree to Redmi Note 12 4G, SM6225; it forked at our 0079).
+**Topaz's public repo has no GPU and no audio code**: its Adreno 610 work uses HackiOS patches that are kept private, and audio is only a roadmap item.
+Ported the device-independent kernel fixes, numbered after umi's 0082-0085 so they apply on `main` and `umi` alike (no shared files):
+- **0086** SweetSurface: topaz 0131-0137 + 0139 without topaz's MDP scanout pool (0092/0093). Wrap-client image/memory (sel 6/7), surface values 9/10/11, bulk attachments 27, purgeable 20, accelerator 12, YCbCr 5, IOSurfaceAddress client-memory surfaces (published, own ids), trap 4 detach vs trap 5 release, zombie state pages for the last 256 released views. Needed for the GL/GPU renderer later; in topaz it fixed blank icons and backboardd unmapping live surfaces.
+- **0087** empty `IOAcceleratorES` nub under AppleCLCD: QuartzCore no longer polls 30 s for it at every backboardd start (`sweetaccel=0` turns it off).
+- **0088** no registry-root busy hold for the IOKit daemon (never launched here): IOKit can quiesce. **Likely the USB-internet blocker**: configd's InterfaceNamer waits for IOKit quiet before it names/applies interfaces (topaz: wifid hung on this).
+- **0089** `sweetbusy=N`: logs `SWEET BUSY:` services still busy N s after the FB starts, every 30 s, 10 rounds.
+- **0090** `sweetlogfilter=WORD,WORD`: only matching console lines are drawn (renamed from topaz's `sweetlog=`, which sweet already uses for the persistent log).
+Checks: whole series applied to xnu-8796.141.3 like dxb does (nothing new skipped); changed files compiled with `tools/xnu-cc.py` against CI buildtree of run 39501061676 (Xcode clang 21): 0 errors. **Not booted on the phone yet.**
+Next on the phone: boot with `sweetusb=2 sweetbusy=60` on image v15; expect `SWEET BUSY: round N: 0 busy services`, then `SWEET NET: configd ... add address 192.168.7.2` + default route; check the fade from "Apple logo" to lock screen is ~30 s shorter.
+Not ported (SoC-specific, need sweet SM7150 registers): direct MDP scanout + double buffering (topaz 0092-0103, the big frame-rate win), dcache ops for DMA (0101/0107/0111, only needed once the MDP scans surfaces), DSI brightness (0104-0110), Wi-Fi/modem (0113-0130: topaz is WCN3950 on SM6225, sweet's WCN3990 needs its own work), cpufreq (0094).
+
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
 
 **STATE at end of 2026-10-18 (evening):**
