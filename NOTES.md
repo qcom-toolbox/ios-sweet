@@ -136,6 +136,15 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   completion by polling the event ring RP (EOT on the last channel, QUP notify bit 10 = NACK). sweet_touch.c uses it
   when SE+0x64 bit 0 is set. Logs `SWEET GPI: ...` (first 24 events). Not booted yet.
 
+- **0093 on hardware (`research/logs/umi-0093.txt`):** SMMU route OK (`SMR5 = 0x80000056, S2CR = 0x4`), gpii0 ready
+  (ch0 0x1020000a ch1 0x10200102 ev 0x10110002 = started/allocated). First write (0x49, 1 byte, stretch) ended with
+  XFER_COMPLETE code 16 status 0x4 on its DMA TRE; 0093 called that an error and the STOP hung in STOP_IN_PROC.
+  Xiaomi's i2c-qcom-geni only fails on status & DM_I2C_CB_ERR (0x40 NACK, 0x100 proto, 0x200 arb) -> that write was
+  fine. TWRP (same phone) drives the same IC through gpi_dmaa00000_gpii0; its pins: 36/37 in no pull 2 mA, 38 out
+  high pull-up 8 mA, 39 in pull-up 8 mA, 69 out high (avdd = touch_vddio_vreg, fixed regulator on GPIO 69; no vdd).
+- **0094:** status-based errors, completion matched to the TRE that asked for EOT (late events ignored), recovery
+  resets channels even if STOP stays in progress, ST FTS probe retried 5x 100 ms over GPI.
+
 ## Agent handoff / active work (2026-10-15, latest)
 
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
