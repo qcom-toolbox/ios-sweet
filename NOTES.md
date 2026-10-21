@@ -172,6 +172,24 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   interrupt registers left at 0 instead of Linux defaults, no QUP bus bandwidth vote); (b) on failure, clean up
   like Linux (terminate: STOP/RESET channels) plus an SE M_CMD abort, so a failure cannot reset the phone.
 
+- **0097-0099 (2026-10-21 evening, automated runs, logs `research/logs/umi-009{7,8,9}-stage*.txt`):**
+  0097 = Linux gpi_config_interrupts defaults + polled acks, SE io-init + qcom_geni_i2c_conf (CLK_SEL 0,
+  M_CLK_CFG 0x71, SCL 0xa02c1a; ABL left m_clk 0x11), gpi_terminate (STOP, SE M_CMD abort, RESET, reprogram,
+  START), test stage 5 (full path + retries, then heartbeat/reboot). 0098 = per-step trace of the first transfers.
+  0099 = stage 6, one NOP TRE.
+  Results: the write still ends XFER_COMPLETE code 16 status 0x4 len 0 (status bit 2 is probably GENI
+  M_ILLEGAL_CMD: the SE rejects the command), then the read GO puts ch0 in ERROR (timeout). The terminate now works
+  (SE status back to 0, both channels STARTED again), but the phone **still resets ~15-16 s after the first real
+  transfer**, whatever follows. TWRP after the reset: PMIC `Power-off reason: PS_HOLD (MSM Controlled Shutdown)`,
+  `Power-on: Hard Reset, cold` = a deliberate reset by the SoC (TZ/hypervisor), not a PMIC fault. TWRP's
+  /sys/kernel/debug/tzdbg/hyp_log shows the hypervisor virtualizes SMMU SMRs ("SMMU Virt SMR: Invalid SID ..."),
+  so our SMR5 write went through hypervisor emulation; previous-boot TZ/hyp logs are not kept.
+  Stage 6 (NOP TRE) survived 40 s but the GPI never completed the NOP (no event), so it does not separate a
+  DMA/SMMU cause from an I2C/SE cause. Default build stays safe (`sweettouchgpi` off).
+  Ideas not tried: a write to an absent address (bus activity, expect NACK); look for the SID 0x56 SMR that
+  Linux/hyp use in TWRP (hyp_log lists SIDs it rejects); compare with an upstream-style GPI init (mainline gpi.c);
+  ask the user for a TWRP with /dev/mem or a debug kernel to read SE5/GPII registers while Linux drives touch.
+
 ## Agent handoff / active work (2026-10-15, latest)
 
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
