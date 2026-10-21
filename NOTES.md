@@ -122,6 +122,20 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   after the boot framebuffer: 0x9ca00000 + 2 x 12 MiB (`sweetfb_slotsize`, new). Two slots = backboardd's two
   alternating 1125x2436 surfaces (bpr 4608, 11.2 MB each).
 
+- **0092 on hardware (2026-10-21, `research/logs/umi-0092-direct.txt`): DIRECT SCANOUT WORKS on umi** (user: looked
+  normal, worked well). cb4 SCTLR 0xe0 (M=0: the display context does not translate), `direct scanout on: VIG0 via
+  CTL0 (flush 0x20001), pool 0x9ca00000 x 2 slots`; no per-frame copy lines; display off/on fade fine.
+- **Touch on umi: 0084 clocks OK, then `need ABL-loaded I2C firmware and 32-bit FIFOs`**: the failing test is
+  GENI_IF_DISABLE_RO (SE+0x64) bit 0 = FIFO interface disabled. Live DT: i2c@a94000 has
+  `dmas = <&gpi 0 5 3 0x40 0>, <&gpi 1 5 3 0x40 0>` (qcom,gpi-dma@a00000, gpi-ee-offset 0x6000, gpii-mask 0x3f,
+  iommus <apps_smmu 0x56 0>): Xiaomi's i2c-qcom-geni runs this SE in GSI_ONLY mode.
+- **0093:** `bsd/dev/sweet_gpi.c`, polled GPI DMA I2C after umi-q-oss gpi.c / i2c-qcom-geni.c (sources fetched from
+  MiCode/Xiaomi_Kernel_OpenSource umi-q-oss): SMR for stream 0x56 -> display cb (translation off); GPII 0
+  (`sweetgpii=N`), TX ch0 / RX ch1 / one event ring, rings + bounce buffers at 0x9e200000 (free end of the splash
+  region, mapped uncached); SE5 into GSI mode; write = CONFIG0 + GO + DMA TRE, read = RX DMA TRE then CONFIG0 + GO;
+  completion by polling the event ring RP (EOT on the last channel, QUP notify bit 10 = NACK). sweet_touch.c uses it
+  when SE+0x64 bit 0 is set. Logs `SWEET GPI: ...` (first 24 events). Not booted yet.
+
 ## Agent handoff / active work (2026-10-15, latest)
 
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
