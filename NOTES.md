@@ -157,6 +157,21 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   errors. TWRP uses gpi_dmaa00000_gpii0 for the same IC.
 - **0095:** GPI touch path only with `sweettouchgpi=1` (default: log and stop) so the default boot is stable again.
 
+- **Reset cause found (0096 test stages, kernel CI 39641705846, logs `research/logs/umi-0096-stage{1..4}.txt`).**
+  The persistent log flushes every **10 s** by default (SWEET_LOG_SECS), not 1 s: up to 10 s are lost at a reset,
+  so use `ufslogsecs=1` when timing matters. Test boot-args: `sweetgpistage=N sweettouchdelay=20 ufslogsecs=1`;
+  after step N the touch thread logs `SWEET TEST: stage N alive K s` for `sweettestsecs` (40) and reboots itself
+  into recovery (IMEM 0x146bf65c = 0x77665502, PSCI SYSTEM_RESET), so runs need nobody at the phone
+  (Mac runner script: boot, wait for adb recovery, pull log).
+  Results: 1 SMMU SMR for stream 0x56 -> survived; 2 + GPII/channels started -> survived; 3 + touch powered
+  (ldoc1, GPIO 69, reset) -> survived; **4 + one write/read (code 16 status 0x4 len 0, then ch0 ERROR) -> the
+  phone resets 16 s after the failed transfer** (last line `alive 15 s`), no panic text. So the SMMU change, GPI
+  setup and power-on are innocent; a transfer that fails and leaves the SE5 command active (GENI STATUS 0x41) /
+  GPI ch0 in ERROR is what brings the SoC down ~16 s later (looks like a secure-side watchdog or bus timeout).
+  Next: (a) make the transfer work (candidates: SE_GENI_CLK_SEL / M_CLK_CFG not written in GSI mode, GPII
+  interrupt registers left at 0 instead of Linux defaults, no QUP bus bandwidth vote); (b) on failure, clean up
+  like Linux (terminate: STOP/RESET channels) plus an SE M_CMD abort, so a failure cannot reset the phone.
+
 ## Agent handoff / active work (2026-10-15, latest)
 
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
