@@ -172,6 +172,18 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   interrupt registers left at 0 instead of Linux defaults, no QUP bus bandwidth vote); (b) on failure, clean up
   like Linux (terminate: STOP/RESET channels) plus an SE M_CMD abort, so a failure cannot reset the phone.
 
+- **0100 experiments (stage 7: one chosen transfer, kernel CI 39652288748, logs `research/logs/umi-0100-stage7-*.txt`):**
+  A write 1 byte to absent 0x10 -> phone reset within ~1 s (log ends at the touch power line, not even the first
+  trace line saved). B plain write (no stretch) to 0x49 -> code 16 status 0x4 len 0, SE status 0x41, reset 16 s
+  later (thread alive meanwhile). C plain read 8 bytes from 0x49 -> GO completed cleanly (XFER_COMPLETE code 4 EOB,
+  status 0 on TRE 0x9e200410) but then the touch thread **stalled inside a GPI register access** in gpi_wait (no
+  1 s timeout ever printed; the rest of iOS kept logging) until the reset. D = A on gpii1 -> reset within ~1 s.
+  Reading: every transfer we start on QUP1 SE5 ends in a PS_HOLD reset, immediately on a NACK, ~16 s otherwise;
+  GPII choice does not matter. Consistent with this SE being protected/shared with the secure side (SE runs
+  GSI-only firmware, FIFO disabled; the panel has FOD) and TZ/hyp reacting to our accesses or to SE error events.
+  Blind experiments have stopped converging: next is ground truth from Linux (register reads of SE5/GPII0 while
+  TWRP/Android drives touch: needs /dev/mem or a debug kernel), or touch parked.
+
 - **0097-0099 (2026-10-21 evening, automated runs, logs `research/logs/umi-009{7,8,9}-stage*.txt`):**
   0097 = Linux gpi_config_interrupts defaults + polled acks, SE io-init + qcom_geni_i2c_conf (CLK_SEL 0,
   M_CLK_CFG 0x71, SCL 0xa02c1a; ABL left m_clk 0x11), gpi_terminate (STOP, SE M_CMD abort, RESET, reprogram,
