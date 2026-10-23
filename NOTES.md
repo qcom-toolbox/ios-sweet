@@ -2,6 +2,17 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **Where Wi-Fi stopped (2026-10-23 evening).** 0115 tested: monitor works (`tools/sweet-mon.py`), stage 4 read
+  BAR0 = 1 MiB, MHI CHDBOFF 0x300 ERDBOFF 0x700 BHIOFF 0x100 BHIEOFF 0x224, BHI execenv 0 (PBL waiting), serial
+  0x2f180788 (log `research/logs/live-0115.txt`). **0116 (built, not yet booted):** stage 5 BHI (first 512 KiB of
+  modem:image/qca6390/amss20.bin via a FAT reader, DMA pool 0xd0000000 32 MiB write-combined, SMMU 0x1c00/0x1c01),
+  stage 6 BHIe (512 KiB segments); + USB Ethernet re-configures after a host bus reset (macOS reset the idle
+  device and the link stayed dead). Next boot: `sweetusb=2 sweetwlan=6 sweetwlandelay=40`, then
+  `sudo ifconfig en8 inet 192.168.7.1 netmask 255.255.255.0 alias` on the Mac. If SBL waits for MHI before
+  BHIe: MHI context init (CCABAP/ECABAP/CRCBAP, M0). Then QRTR over MHI IPCR 20/21, WLFW (topaz 0122), m3.bin,
+  ath11k CE/WMI, wifid (topaz 0900) for Settings > Wi-Fi. Untethered option discussed (flash the iOS image to
+  `recovery`, Vol Up + Power; backup ~/ios-umi-backup/recovery-read-2026-10-23.img) - needs the user's go-ahead.
+  Tweak-injection WIP (kern.exec_inject + AMFI dyld policy) parked in `research/exec-inject-wip.diff` (local).
 - **🎉 2026-10-23: PCIe link to the QCA6390 UP under iOS (0114, log `research/logs/umi-0114-usb-wlan3.txt`).**
   `link UP: linkctl 0xb0120008 (gen 2 x1)`, `bus 1 dev 0: id 0x110117cb` 10 ms after LTSSM enable. 0113 stayed in
   LTSSM 0 (detect): the missing piece was **vdd-wlan-dig = PM8009 S2 (`smpf2`, 950 mV)** - voted through RPMh in
