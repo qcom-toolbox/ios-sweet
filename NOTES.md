@@ -2,6 +2,11 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-23: all 8 CPUs on umi (0111 kernel, `cpus=8`, log `research/logs/umi-0111-cpus8.txt`).** `SWEET CPU:
+  8/8 CPUs initialized, SGI1 verified`: cpu1-3 A55, cpu4-7 A77 (MPIDR 0x400-0x700, cpu7 = prime) via PSCI CPU_ON.
+  User: works fine, Settings "superfast". `tools/umi-boot-image.sh` now defaults to `cpus=8 sweetfb_direct=1`.
+  Next: cpufreq (the A77s likely still run at the bootloader's clock; SM8250 uses cpufreq-hw/EPSS).
+  0111 verified: Settings > About opens at once.
 - **About wait, root cause (0110 log `research/logs/umi-0110.txt` + dyld cache `research/dsc/20H392__iPhone10,3_6/`):**
   symbolicated: main thread -[PSGAboutDataSource _macAddress] -> __SCNetworkInterfaceCopyAllWithPreferences ->
   dispatch_once held by ____wait_for_IOKit_to_quiesce_block_invoke -> SCDynamicStoreNotifyWait (Settings' Ethernet

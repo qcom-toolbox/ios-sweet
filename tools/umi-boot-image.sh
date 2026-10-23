@@ -13,9 +13,9 @@ cd "$(dirname "$0")/.."
 [[ -f research/ipsw-x/d22ap.adt ]] || echo "warning: no research/ipsw-x/d22ap.adt, ADT without /product" >&2
 
 # The boot that reaches the iOS lock screen with touch and keys (NOTES.md, umi section).
-cmdline='debug=0xc serial=3 cpus=4 keepsyms=1 -enable_kprintf_spam -noprogress rd=ufsroot0'
+cmdline='debug=0xc serial=3 cpus=8 keepsyms=1 -enable_kprintf_spam -noprogress rd=ufsroot0'
 cmdline+=' unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1'
-cmdline+=' launchd_unsecure_cache=1 wdt=-1 sweetfb_noconsole=1 sweetfb_hz=30'
+cmdline+=' launchd_unsecure_cache=1 wdt=-1 sweetfb_noconsole=1 sweetfb_hz=30 sweetfb_direct=1'
 cmdline+=" ${*:-sweetusb=0}"
 
 mkdir -p shim/out
