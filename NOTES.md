@@ -2,6 +2,14 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **Settings > About "can't escape" (log `research/logs/umi-0108d.txt`, `sweetiolog=Preferences,MobileGestaltHelper
+  sweetsample=Preferences`):** About queries IONetworkInterface/IOSerialBSDClient/bluetooth (none). First sample: main
+  thread in semaphore_wait via libdispatch from a framework at 0x235d3xxxx; 2 min later back in its run loop (the wait
+  ends). The real blocker: **bottom-edge touches never got kIOHIDDigitizerEventFromEdgeTip** (SweetHID used sweet's
+  1079/2399; umi panel is 1080x2340, max y 2339 < 2351) -> no home gesture inside apps. **0109** uses fPanelW/fPanelH.
+  Right edge verified: touches at x 991 and 977 registered (panel 1080 wide).
+  Symbolication: `ipsw extract --remote --dyld --dyld-arch arm64 -o research/dsc <IPSW>` (20H392 cache).
+
 - **🎉 MILESTONE 2026-10-23: TOUCH WORKS ON umi (kernel 0108, image `shim/out/umi-0108.img`, log
   `research/logs/umi-0108.txt`).** User: "TOUCHSCREEN WORKS". Chain: QUP1 SE5 GSI-only I2C through GPI DMA (0093-0098),
   SMMU routes for GPI stream 0x56 **and the QUP1 wrapper stream 0x43** (0102: without 0x43 every transfer faulted and
