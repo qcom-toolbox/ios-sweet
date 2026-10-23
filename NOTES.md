@@ -172,6 +172,18 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   interrupt registers left at 0 instead of Linux defaults, no QUP bus bandwidth vote); (b) on failure, clean up
   like Linux (terminate: STOP/RESET channels) plus an SE M_CMD abort, so a failure cannot reset the phone.
 
+- **0106 hand test (`research/logs/umi-0106.txt`):** the full Linux replay got byte-identical replies (sysinfo,
+  lockdown, `c0`, C1 05 -> 00 00 50 0f 02 0e 01, echoes, FORCE_CAL) and still no touches: not a command problem.
+  TWRP experiments: our polling tool (`ftspoll`, static aarch64, W 86/R 8 at 100 Hz over /dev/i2c-3) read 254 touch
+  events while Linux kept working -> polling is fine. Panel B9 (`00 00 14 18 00 00 00 11 03`, TSP-sync-like) zeroed
+  via `/sys/class/drm/card0-DSI-1/mipi_reg` -> touch still worked (restored). Panel asleep (DCS 28 + 10) -> touch
+  still worked: the IC does not need the display. Enabled regulators in TWRP that the touch driver does not own:
+  `display_panel_vci` 3.0 V (TLMM GPIO 71, boot-on) and **`vdd_boost_vreg`: PM8150B GPIO 5, regulator-always-on,
+  0 users** -> Linux switches it on at boot, nothing in our kernel does. Linux register state (regmap spmi0-02):
+  c440=01 c441=01 c442=05 c444=80 c445=03 c446=80 (status c408=80).
+- **0107:** PMIC writes (arbiter v5 EE 0 channel at 0xc600000, owner checked) in sweet_keys.c; umi touch start logs
+  PM8150B GPIO 5 as found and, if off, writes Linux's values (`sweettouchboost=0` skips).
+
 - **TWRP I2C trace of fts_521 probe (2026-10-23, `research/logs/twrp-fts-i2c-trace.txt`):** recovery image read
   from the phone (`~/ios-umi-backup/recovery-read-2026-10-23.img`), cmdline + `trace_event=i2c:i2c_write,i2c:i2c_read,
   i2c:i2c_reply,i2c:i2c_result trace_buf_size=8M` patched in place (header id recomputed), `fastboot boot` (RAM).
