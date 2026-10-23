@@ -172,6 +172,15 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   interrupt registers left at 0 instead of Linux defaults, no QUP bus bandwidth vote); (b) on failure, clean up
   like Linux (terminate: STOP/RESET channels) plus an SE M_CMD abort, so a failure cannot reset the phone.
 
+- **0105 hand tests (`research/logs/umi-0105.txt`, `umi-0105i.txt` with `sweettouchirq=1`):** pins after power-on
+  avdd69 cfg 0x200 io 0x3 (output, high), reset38 out high, irq39 input pull-up (low only right after reset, then
+  high). Sense off/on cycle answered (ECHO A0 00 00, FORCE_CAL, ECHO A0 00 01), then **no touch events and the
+  IRQ line never asserted** in 18000 (10 ms polling) / 900 (IRQ-driven) samples while the user touched.
+  So the IC itself does not sense. Ruled out: I2C transport, vdd (ldoc1) and avdd (GPIO 69) as Linux sets them,
+  reset/IRQ pins, sense-on bytes, polling load, QUP0 BCM vote. Remaining guesses: a display-side requirement
+  (on-cell touch synced to the DDIC), a supply shared with the panel, or an fts_521 init step not yet found.
+  Next idea: replay sequences against the IC from TWRP (working Linux, /dev/i2c-3) with a small static tool.
+
 - **0103/0104 hand test (`research/logs/umi-0104.txt`): touch I2C runs without errors but the IC reports no touches.**
   After A0 00 01 the FIFO gave `43 01 a0 00 01 ..` (STATUS_UPDATE ECHO of our command) and `43 05 01 00 00 00 00 01`
   (STATUS FORCE_CAL triggered), then nothing in 44000 reads (~7 min) while the user touched. fts_521 sends the
