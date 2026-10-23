@@ -172,6 +172,11 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   interrupt registers left at 0 instead of Linux defaults, no QUP bus bandwidth vote); (b) on failure, clean up
   like Linux (terminate: STOP/RESET channels) plus an SE M_CMD abort, so a failure cannot reset the phone.
 
+- **0107 on hardware (`research/logs/umi-0107.txt`): under iOS the boost was OFF**: PM8150B GPIO 5 found as
+  `mode 01 vin 00 pull 04 out 00 drv 01 en 80 status 80` (output driven low; Linux: out 80). The touch thread then
+  stalled inside the first PMIC write: wrong channel stride (used 0x80*apid; Linux pmic_arb_offset_v5 RW channel is
+  **0x10000 * apid**, the observer is 0x80*apid). **0108** fixes the stride (one mapped page per APID).
+
 - **0106 hand test (`research/logs/umi-0106.txt`):** the full Linux replay got byte-identical replies (sysinfo,
   lockdown, `c0`, C1 05 -> 00 00 50 0f 02 0e 01, echoes, FORCE_CAL) and still no touches: not a command problem.
   TWRP experiments: our polling tool (`ftspoll`, static aarch64, W 86/R 8 at 100 Hz over /dev/i2c-3) read 254 touch
