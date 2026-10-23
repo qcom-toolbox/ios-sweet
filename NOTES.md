@@ -172,6 +172,14 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   interrupt registers left at 0 instead of Linux defaults, no QUP bus bandwidth vote); (b) on failure, clean up
   like Linux (terminate: STOP/RESET channels) plus an SE M_CMD abort, so a failure cannot reset the phone.
 
+- **0103/0104 hand test (`research/logs/umi-0104.txt`): touch I2C runs without errors but the IC reports no touches.**
+  After A0 00 01 the FIFO gave `43 01 a0 00 01 ..` (STATUS_UPDATE ECHO of our command) and `43 05 01 00 00 00 00 01`
+  (STATUS FORCE_CAL triggered), then nothing in 44000 reads (~7 min) while the user touched. fts_521 sends the
+  same sense-on (A0 00 01; FOD build: A0 00 00, wait, A0 00 01, then gesture cmd A2 03 ..), so the command is right.
+  Suspect: no analog supply (AVDD = GPIO 69 touch_vddio_vreg) or sensing otherwise stalled. **0105:** pin readback
+  after power-on and every 10 s (avdd69, reset38, irq39), IRQ-line low sampling, sense off/on cycle,
+  `sweetftsscan=N` for the active-scan bits.
+
 - **UMI TOUCH I2C WORKS (0102, 2026-10-22/23).** Root cause of every failed transfer and of the PS_HOLD resets: the
   I2C *data* is moved as the QUP1 wrapper's SMMU stream **0x43** (DT `qcom,qupv3_1_geni_se@ac0000 iommus =
   <&apps_smmu 0x43 0>`, Linux maps the buffers on `gi2c->wrapper_dev`), while the GPI fetches TREs/writes events as
