@@ -1,4 +1,4 @@
-From b6c7fddd4a56e02e1b5ec9e2d721cb972b6f6318 Mon Sep 17 00:00:00 2001
+From 416a2941bf8516519501729c33890a1125ff778b Mon Sep 17 00:00:00 2001
 From: port <p@p>
 Date: Fri, 23 Oct 2026 21:32:17 +0200
 Subject: [PATCH] umi-0116
@@ -7,8 +7,9 @@ Subject: [PATCH] umi-0116
  bsd/conf/files       |   1 +
  bsd/dev/sweet_pcie.c |   4 +-
  bsd/dev/sweet_ufs.c  | 102 ++++++++++++
+ bsd/dev/sweet_usb.c  |  10 ++
  bsd/dev/sweet_wlan.c | 363 +++++++++++++++++++++++++++++++++++++++++++
- 4 files changed, 469 insertions(+), 1 deletion(-)
+ 5 files changed, 479 insertions(+), 1 deletion(-)
  create mode 100644 bsd/dev/sweet_wlan.c
 
 diff --git a/bsd/conf/files b/bsd/conf/files
@@ -158,6 +159,27 @@ index 2348284..23d4ccc 100644
  static int
  ufs_take_over_host(void)
  {
+diff --git a/bsd/dev/sweet_usb.c b/bsd/dev/sweet_usb.c
+index 5604a4c..64d8382 100644
+--- a/bsd/dev/sweet_usb.c
++++ b/bsd/dev/sweet_usb.c
+@@ -760,6 +760,16 @@ ud_event(uint32_t ev)
+ 		uint32_t type = (ev >> 8) & 0xf;
+ 		if (type == 1) {        /* USB reset */
+ 			dwc_wr(DCFG, dwc_rd(DCFG) & ~(0x7fu << 3));
++			/* The host configures us again (macOS resets idle devices): endpoints are gone. */
++			if (ud.configured) {
++				ud.configured = false;
++				ud.data_alt = 0;
++				ud.notify_connect = false;
++				ud_link_event(false);
++				lck_mtx_lock(ud.lock);
++				ud.tx_busy = false;
++				lck_mtx_unlock(ud.lock);
++			}
+ 			printf("SWEET USB: bus reset\n");
+ 		} else if (type == 2) { /* connect done */
+ 			uint32_t speed = dwc_rd(DSTS) & 7;
 diff --git a/bsd/dev/sweet_wlan.c b/bsd/dev/sweet_wlan.c
 new file mode 100644
 index 0000000..cefa69f
