@@ -172,6 +172,18 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   interrupt registers left at 0 instead of Linux defaults, no QUP bus bandwidth vote); (b) on failure, clean up
   like Linux (terminate: STOP/RESET channels) plus an SE M_CMD abort, so a failure cannot reset the phone.
 
+- **UMI TOUCH I2C WORKS (0102, 2026-10-22/23).** Root cause of every failed transfer and of the PS_HOLD resets: the
+  I2C *data* is moved as the QUP1 wrapper's SMMU stream **0x43** (DT `qcom,qupv3_1_geni_se@ac0000 iommus =
+  <&apps_smmu 0x43 0>`, Linux maps the buffers on `gi2c->wrapper_dev`), while the GPI fetches TREs/writes events as
+  0x56. Only 0x56 was routed; 0x43 hit `unmatched streams fault` -> code 16 len 0, then TZ/hyp reset. 0102 adds an
+  SMR for 0x43 -> cb4 (translation off; `sweetqupsid=0` skips). Found via adb in TWRP: `/sys/kernel/debug/ipc_logging/
+  {a94000.i2c,gpi_dmaa00000_gpii0}` (Linux does the same W1/R8 transfers, succeeds), msm-bus-dbg client
+  `ac0000.qcom,qupv3_1_geni_se` (QUP0 BCM vote, 0101 adds it, not the cause), DT iommus of the wrapper.
+  Runs: G (stage 7 FTS W1+R8) -> code 2 (EOT) len 1, GO EOB, RX len 8 = `03 00..` CONTROLLER_READY, survived;
+  H (stage 5) -> probe, scan mode A0 00 01, `selected ST FTM5, 1080x2340`, 10 s polling 0 errors, survived.
+  Linux powers the IC exactly like us (regulator.39 pm8150a_l1 1.8 V + regulator.77 disp_vddio/touch_vddio GPIO 69).
+  **0103:** GPI touch path on by default (`sweettouchgpi=0` off). Image `shim/out/umi-0103.img` booted for a hand test.
+
 - **0100 experiments (stage 7: one chosen transfer, kernel CI 39652288748, logs `research/logs/umi-0100-stage7-*.txt`):**
   A write 1 byte to absent 0x10 -> phone reset within ~1 s (log ends at the touch power line, not even the first
   trace line saved). B plain write (no stretch) to 0x49 -> code 16 status 0x4 len 0, SE status 0x41, reset 16 s
