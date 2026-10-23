@@ -2,6 +2,17 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **🎉 MILESTONE 2026-10-23: TOUCH WORKS ON umi (kernel 0108, image `shim/out/umi-0108.img`, log
+  `research/logs/umi-0108.txt`).** User: "TOUCHSCREEN WORKS". Chain: QUP1 SE5 GSI-only I2C through GPI DMA (0093-0098),
+  SMMU routes for GPI stream 0x56 **and the QUP1 wrapper stream 0x43** (0102: without 0x43 every transfer faulted and
+  the SoC reset), ST FTM5 at 0x49 with fts_521's probe sequence (0106), and **vdd_boost_vreg = PM8150B GPIO 5 driven
+  high** (0107/0108: DT `regulator-always-on`, so Linux enables it at boot; under iOS it was found driven low, and the
+  IC then talked over I2C but never sensed). Found by tracing Linux in TWRP (i2c ftrace on the recovery cmdline,
+  regmap spmi0-02, enabled regulators) and ruling out polling (static `ftspoll` tool) and the display (mipi_reg B9,
+  panel sleep). Log: boost `out 00 -> 80`, 554 FIFO events, multi-touch (id 1) and edge flags reach SweetHID.
+  Open: Settings > About froze the UI (no panic; user forced fastboot), check what About queries.
+  Touch x seen 0..676 only (y 0..2339): verify the right side of the screen maps correctly.
+
 Hardware facts and partition backups live outside git in `~/ios-umi-backup/` (UMI-FACTS.md).
 Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --board umi`.
 
