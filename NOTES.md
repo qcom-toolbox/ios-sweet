@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **🎉 2026-10-23: PCIe link to the QCA6390 UP under iOS (0114, log `research/logs/umi-0114-usb-wlan3.txt`).**
+  `link UP: linkctl 0xb0120008 (gen 2 x1)`, `bus 1 dev 0: id 0x110117cb` 10 ms after LTSSM enable. 0113 stayed in
+  LTSSM 0 (detect): the missing piece was **vdd-wlan-dig = PM8009 S2 (`smpf2`, 950 mV)** - voted through RPMh in
+  0114. smpa4/5/6 and smpc8 have two cmd-db entries, so sweet_rpmh refuses them; they are on anyway.
+  **USB Ethernet works on umi** (0112 SMMU stream 0, 0114 CONNECTION_SPEED_CHANGE before NETWORK_CONNECTION for
+  macOS AppleUserECM): ping 192.168.7.2 ~1.5 ms, live log on udp/5140. 0115: UDP monitor on udp/5141
+  (`tools/sweet-mon.py`: r/w physical registers, `wlan STAGE` re-runs the bring-up) and PCIe stage 4 (BAR0, MHI).
 - **Wi-Fi plan (2026-10-23).** umi Wi-Fi is a **QCA6390 on PCIe0** (DT `qcom,cnss-qca6390`, pcie@1c00000; TWRP
   enumerates it as 0000:01:00.0 17cb:1101, driver cnss_pci), not topaz's modem-integrated WCN. Firmware: modem
   partition `image/qca6390/` (amss20.bin, m3.bin, bdwlan.e*, regdb.bin), copied to `research/umi-wlan-fw/` (local).
