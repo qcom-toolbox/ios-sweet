@@ -43,7 +43,10 @@ touch starts ~45 s after the kernel finds the UFS root.
 
 - From TWRP (any normal reboot lands there, because Android has no data):
   `tools/sweet-log-pull.sh research/logs/NAME.txt` (reads the last 4 MiB of userdata).
-- Live over USB (boot-arg `sweetusb=2`): `tools/sweet-usbnet.sh research/logs/NAME.txt`.
+- Live over USB (boot-arg `sweetusb=2`, works since 0114): on Linux `tools/sweet-usbnet.sh research/logs/NAME.txt`.
+  On macOS the phone appears as an AppleUserECM interface with MAC 02:00:5e:77:ee:01 (`ifconfig` shows which enN);
+  give it the host address with `sudo ifconfig enN inet 192.168.7.1 netmask 255.255.255.0 alias`, then
+  `ping 192.168.7.2` and `nc -ul 5140 >> research/logs/NAME.txt` for the live console.
 - Symbolicate user-space addresses: mount the SystemOS cryptex read-only with
   `apfs-fuse -o ro`, then `ipsw dyld a2s .../dyld_shared_cache_arm64 <addr - slide>`.
 
