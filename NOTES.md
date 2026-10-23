@@ -2,6 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **About wait, root cause (0110 log `research/logs/umi-0110.txt` + dyld cache `research/dsc/20H392__iPhone10,3_6/`):**
+  symbolicated: main thread -[PSGAboutDataSource _macAddress] -> __SCNetworkInterfaceCopyAllWithPreferences ->
+  dispatch_once held by ____wait_for_IOKit_to_quiesce_block_invoke -> SCDynamicStoreNotifyWait (Settings' Ethernet
+  watcher got there first). configd's InterfaceNamer (configd-1241.140.6 ifnamer.c) opens the **IONetworkStack**
+  object (IONetworkingFamily, absent here) and only then posts `*QUIET*`; without it, WaitStackTimeout = 300 s. 0110
+  showed root busy 0 throughout and no IOKitWaitQuiet callers. **0111:** empty IONetworkStack (+ user client that
+  opens) published in AppleCLCD::start, before configd (InterfaceNamer checks once at launch); `sweetnetstack=0` off.
+  0109 verified: bottom-edge touches now flagged (`448,2339 edge`), home swipe works in apps.
+- **2026-10-23: main fast-forwarded to umi-scanout (2bb9a89)** at the user's request.
+
 - **Settings > About "can't escape" (log `research/logs/umi-0108d.txt`, `sweetiolog=Preferences,MobileGestaltHelper
   sweetsample=Preferences`):** About queries IONetworkInterface/IOSerialBSDClient/bluetooth (none). First sample: main
   thread in semaphore_wait via libdispatch from a framework at 0x235d3xxxx; 2 min later back in its run loop (the wait
