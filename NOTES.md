@@ -172,6 +172,15 @@ Build: `BOARD=umi shim/build.sh [payload]`, `tools/mkadt.py OUT --highmem --boar
   interrupt registers left at 0 instead of Linux defaults, no QUP bus bandwidth vote); (b) on failure, clean up
   like Linux (terminate: STOP/RESET channels) plus an SE M_CMD abort, so a failure cannot reset the phone.
 
+- **TWRP I2C trace of fts_521 probe (2026-10-23, `research/logs/twrp-fts-i2c-trace.txt`):** recovery image read
+  from the phone (`~/ios-umi-backup/recovery-read-2026-10-23.img`), cmdline + `trace_event=i2c:i2c_write,i2c:i2c_read,
+  i2c:i2c_reply,i2c:i2c_result trace_buf_size=8M` patched in place (header id recomputed), `fastboot boot` (RAM).
+  Linux sends: reset -> FIFO until 03; A6 00 00 r208 (sysinfo); A6 00 00 r4; A4 06 70 (load lockdown); A6 00 00 r28;
+  FA 20 00 00 78 r1 (=c0); reset; reset; A0 00 01; A2 03 00 00 00 03; A0 00 00; A0 00 01; C1 05 r7; A2 02 01.
+  **In TWRP, `i2cset -f -y 3 0x49 0xa0 0x00 0x00 i` killed touch and our `... 0xa0 0x00 0x01 i` brought it back**
+  (user-verified): our sense-on works once Linux has initialized the IC/environment.
+- **0106:** `sweetftslinux=1` (default) replays that whole sequence in our kernel before sensing.
+
 - **0105 hand tests (`research/logs/umi-0105.txt`, `umi-0105i.txt` with `sweettouchirq=1`):** pins after power-on
   avdd69 cfg 0x200 io 0x3 (output, high), reset38 out high, irq39 input pull-up (low only right after reset, then
   high). Sense off/on cycle answered (ECHO A0 00 00, FORCE_CAL, ECHO A0 00 01), then **no touch events and the
