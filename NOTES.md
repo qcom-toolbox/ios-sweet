@@ -2,6 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **Wi-Fi plan (2026-10-23).** umi Wi-Fi is a **QCA6390 on PCIe0** (DT `qcom,cnss-qca6390`, pcie@1c00000; TWRP
+  enumerates it as 0000:01:00.0 17cb:1101, driver cnss_pci), not topaz's modem-integrated WCN. Firmware: modem
+  partition `image/qca6390/` (amss20.bin, m3.bin, bdwlan.e*, regdb.bin), copied to `research/umi-wlan-fw/` (local).
+  Layers: WLAN_EN GPIO20 (rails S4A/S5A/S6A/S8C/pm8009 S2 are shared), PCIe0 (GDSC 0x6b004, GCC vote 0x52008
+  bits 0-5, DT qcom,phy-sequence, PERST GPIO79, CLKREQ 80, LTSSM PARF 0x1b0 bit 8; PHY rails L5A/L9A = UFS PHY's),
+  SMMU streams 0x1c00/0x1c01, MHI (BHI + BHIe full boot chain of amss20.bin), QRTR over MHI IPCR, WLFW QMI
+  (topaz 0122 reusable), ath11k CE/HTC/WMI/HTT + DP rings, then topaz 0900's Apple80211 en0 for wifid.
+  DMA: DT cnss_wlan_region asks 20 MiB below 4 GiB. **0113** = stage 1 (`sweetwlan=1` clocks, `=2` +PHY,
+  `=3` +link and endpoint ID; `sweetwlandelay` s). 0112: umi USB stream 0 SMMU route (sweetusb=2 hung at the
+  first DMA write right after the soft reset, log `research/logs/umi-0111-usb.txt`).
 - **2026-10-23: all 8 CPUs on umi (0111 kernel, `cpus=8`, log `research/logs/umi-0111-cpus8.txt`).** `SWEET CPU:
   8/8 CPUs initialized, SGI1 verified`: cpu1-3 A55, cpu4-7 A77 (MPIDR 0x400-0x700, cpu7 = prime) via PSCI CPU_ON.
   User: works fine, Settings "superfast". `tools/umi-boot-image.sh` now defaults to `cpus=8 sweetfb_direct=1`.
