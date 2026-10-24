@@ -2,6 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0133 hw mode, channel list, STA vdev, passive scan (built on CI, not yet booted).** After WMI_READY
+  (ath11k v6.6 core start / mac start / add_interface / hw_scan for qca6390): PDEV_SET_HW_MODE 0x401e (DBS, pdev 0),
+  SCAN_CHAN_LIST 0x3003 (2412-2472 MHz, MODE_11G + PASSIVE + ALLOW_HE, 20 dBm; array TLV length 4 short as
+  ath11k), VDEV_CREATE 0x5001 (vdev 0 STA, pdev 0 = SoC, MAC 02:00:5e:77:ee:10 locally administered, streams =
+  rf chains), START_SCAN 0x3001 (scan id 0xa000, passive + chan stat, dwell 150 ms, broadcast BSSID). WMI sends
+  wait up to 1 s for an HTC credit. Logs scan events, `SWEET WMI: BSS <bssid> <MHz> snr <n> "<ssid>"` once per
+  BSS from MGMT_RX 0x7001 beacons/probe responses, and a summary. HTT version request (ath11k sends it after
+  set_hw_mode) is left out: no data path yet. Stage 8 codes: 42-45 send of hw mode / chan list / vdev / scan
+  failed, 46 scan never started, 47 not completed in 15 s.
 - **🎉 2026-10-24 0132 boot: WMI initialized, WMI_READY status 0 (CI run 40099804000, log
   `research/logs/live-0132.txt`).** Service-ready set seen (0x3, 0x1, 0x4009, 0x4022), INIT sent with chain mask 0x3,
   then events 0x16005, 0x3a001 x2 (REG_CHAN_LIST_CC, 132 B each), 0x2 READY: `status 0, MAC 00:00:00:00:00:00`,
