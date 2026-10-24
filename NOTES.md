@@ -2,6 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0140 join an open network (built on CI, not yet booted).** After the scan, if boot-arg
+  `sweetwlanssid=NAME` (`_` = space) names a network that was heard: PEER_CREATE 0x6001 -> HTT PEER_MAP (T2H 0x3
+  / 0x1e), VDEV_START 0x5003 on the AP's channel (MODE_11G, LDPC rx) -> VDEV_START_RESP 0x5001, open-system auth
+  and assoc request (SSID, 8 + 4 legacy rates, listen interval 1) via MGMT_TX_SEND 0x7008 (frame at window
+  +0x7c000, 64 bytes inline) -> MGMT_TX_COMPLETION 0x7006 + replies parsed from MGMT_RX, PEER_ASSOC 0x6005
+  (41-word cmd, WMI_PEER_AUTH, MODE_11G, 12 legacy rates) -> PEER_ASSOC_CONF 0x6006, VDEV_UP 0x5005, PEER_SET_PARAM
+  AUTHORIZE. Legacy 11g only (no HT/VHT/HE IEs). Stage 8 codes 51-61 = join steps 1-11 (51 = network not heard).
+  The user's test network is open (2.4 GHz); its name goes only on the boot line, not into git. Also: rssi read
+  as signed dBm.
 - **2026-10-24 0139 boot: monitor-status reap works, two read-outs wrong (CI run 40122506135, log
   `research/logs/live-0139.txt`).** `monitor status: 9 buffers, 9 ppdus, 9 mpdus, ..., 0 not done` - every reaped
   buffer had STATUS_BUFFER_DONE and parsed to a PPDU end; buffers re-posted (status tp 20). Wrong: channel 0 (the
