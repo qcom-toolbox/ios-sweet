@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: QRTR up to the QCA6390 firmware (0126, `sweetwlan=7`, log `research/logs/live-0126.txt`).**
+  MHI channels 20/21 start (code 1), firmware QRTR v1 HELLO from node 7, `NEW_SERVER service 0x45 instance
+  0x101 node 7 port 0x1` = WLFW. Fixes on the way: 0125 (channel types/event rings set before M0), 0126 (MHI
+  contexts are 44 bytes packed, not 40: channel 20 and event ring 1 were misplaced -> START_CHAN code 16).
+  Next: WLFW QMI (topaz 0122): ind_register, host_cap, respond_mem, cap, BDF (bdwlan.e*), M3 (m3.bin), mode.
+  Wallpaper (user request): topaz's comes with its GPU stack (Mesa freedreno, Adreno 610); its README still lists
+  wallpaper/widgets as being investigated. umi would need the Adreno 650 port first.
 - **🎉 2026-10-24: QCA6390 firmware RUNNING under iOS (0123, log `research/logs/live-0123.txt`).** BHI (512 KiB SBL)
   -> SBL -> MHI READY -> contexts + M0 -> events `state 2` (M0), `ee 1` (SBL) -> BHIe 9 x 512 KiB -> `ee 2`
   (AMSS / mission mode), MHISTATUS 0x201. The blocker for 0116-0122 was **MSI**: without an enabled MSI
