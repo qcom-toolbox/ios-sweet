@@ -2,7 +2,20 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0142 STA power save off (built on CI, not yet booted).** ath11k add_interface for a STA also
+- **2026-10-24: 0143 data diagnostics (built on CI, not yet booted).** After the join: every management frame
+  between us and the AP (subtype, reason / action category), all WMI events and HTT messages again (log cap
+  reset), raw words of the first TX completions (the FW-source completion has its own status format, not the TQM
+  reason), TCL encrypt type OPEN (7) explicitly (0 = WEP_40; ath11k leaves 0 for Ethernet frames), and if DHCP
+  gets no answer, ARP probes (sender 0.0.0.0) for 192.168.0.1, 192.168.1.1, 192.168.43.1, 172.20.10.1, 10.0.0.1 -
+  any reply proves unicast receive and names the router (the AP's BSSID is locally administered: phone hotspot
+  or repeater?).
+- **2026-10-24 0142 boot: same as 0141 (CI run 40126985508, log `research/logs/live-0142.txt`).** PS off did
+  not change it: 3 DISCOVERs acked, the 5 frames in the first 2 s after association are multicast IPv4 (len 81 /
+  54), then nothing on the REO rings while the radio heard 151 PPDUs (monitor status, beacons at ~10/s fit). The
+  DISCOVER bytes read back from the TX buffer are a valid frame (broadcast, IPv4 0.0.0.0 -> 255.255.255.255,
+  UDP 68 -> 67, BOOTP chaddr = our MAC, IP checksum ok). No WMI events after association (22 generic logs <
+  cap 24). AID increases per boot (1, 2, 3): the AP keeps old sessions.
+- **2026-10-24: 0142 STA power save off (CI run 40126985508, `xnu/out-0142`).** ath11k add_interface for a STA also
   sets VDEV_PARAM_NSS (0x22) = chains, STA_POWERSAVE_PARAM (0x9002) RX_WAKE_POLICY=WAKE, TX_WAKE_THRESHOLD=ALWAYS,
   PSPOLL_COUNT=NO_MAX and STA_POWERSAVE_MODE (0x9001) = DISABLED - 0141 left the firmware defaults. Leading guess
   for 0141's silence: the firmware went into power save. RX log now 12 frames with destination class (bcast /
