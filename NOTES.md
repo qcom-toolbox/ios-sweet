@@ -2,7 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0133 hw mode, channel list, STA vdev, passive scan (built on CI, not yet booted).** After WMI_READY
+- **🎉 2026-10-24 0133 boot: first Wi-Fi scan - the QCA6390 radio receives (CI run 40101164485, log
+  `research/logs/live-0133.txt`, git-ignored; it holds nearby networks' names, keep them out of git).** After
+  WMI_READY: SET_HW_MODE response 0x4010, then START_SCAN: `scan event 0x1` (started), BSS_CHANNEL / foreign
+  channel events for 2412-2472 MHz, `scan event 0x2 reason 0` (completed), `scan completed: 13 channel visits, 2
+  management frames, 2 BSS` (beacons with SNR 35 and 14, SSIDs decoded), stage 8 result 0. Open points: the MHz
+  printed from the MGMT_RX header (+64, chan_freq) reads 0 - this firmware's wmi_mgmt_rx_hdr is probably shorter,
+  check the TLV length; only 2 frames in 13 x 150 ms passive dwell (maybe the firmware forwards one beacon per BSS);
+  frequent unknown event 0x1d011 (~1.5 KB, 13 of them). **Next:** active scan (probe requests, needs TX on a
+  vdev with our MAC), then the data path (HTT version, DP rings) and association; later the Apple80211 side.
+- **2026-10-24: 0133 hw mode, channel list, STA vdev, passive scan (CI run 40101164485, `xnu/out-0133`).** After WMI_READY
   (ath11k v6.6 core start / mac start / add_interface / hw_scan for qca6390): PDEV_SET_HW_MODE 0x401e (DBS, pdev 0),
   SCAN_CHAN_LIST 0x3003 (2412-2472 MHz, MODE_11G + PASSIVE + ALLOW_HE, 20 dBm; array TLV length 4 short as
   ath11k), VDEV_CREATE 0x5001 (vdev 0 STA, pdev 0 = SoC, MAC 02:00:5e:77:ee:10 locally administered, streams =
