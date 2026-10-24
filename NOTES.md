@@ -2,6 +2,12 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0127 WLFW QMI steps 1-5 (built on CI, not yet booted).** 0127 = `research/ipcr-wlfw-wip.diff` +
+  new `bsd/dev/sweet_wlfw.c`, run for `sweetwlan=8` after IPCR finds WLFW: IND_REGISTER 0x20, HOST_CAP 0x34,
+  wait REQUEST_MEM 0x35 (segments logged), RESPOND_MEM 0x36 from low RAM `sweetwlfwmem` (default 0xd1000000,
+  16 MiB, each segment aligned to its size up to 1 MiB, zeroed), wait FW_MEM_READY 0x37, then listen 500 ms.
+  Return codes from stage 8: 21-25 = step 1-5 failed (log lines `SWEET WLFW:` say why). Boot:
+  `sweetusb=2 sweetwlan=8 sweetwlandelay=90`, log `research/logs/live-0127.txt`. Next: CAP 0x24, BDF, M3.
 - **WLFW next (in progress, not built).** `research/ipcr-wlfw-wip.diff` (local, applies to the t-sweet tree after
   0126): IPCR sends wait for completion, 8 KiB TX buffer at block +0xf000, received packets queued, QRTR DATA
   with RESUME_TX, `sweet_ipcr_send()` / `sweet_ipcr_service()` for a WLFW client on port 0x4001. Still to write:
