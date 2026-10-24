@@ -2,6 +2,14 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **WLFW next (in progress, not built).** `research/ipcr-wlfw-wip.diff` (local, applies to the t-sweet tree after
+  0126): IPCR sends wait for completion, 8 KiB TX buffer at block +0xf000, received packets queued, QRTR DATA
+  with RESUME_TX, `sweet_ipcr_send()` / `sweet_ipcr_service()` for a WLFW client on port 0x4001. Still to write:
+  `bsd/dev/sweet_wlfw.c` (ath11k qmi.c, qca6390 hw2.0): IND_REGISTER 0x20 (TLV 0x10 fw_ready, 0x15 client_id
+  0x4b4e454c, 0x16 request_mem, 0x17 fw_mem_ready, 0x18 fw_init_done, 0x1B cal_done), HOST_CAP 0x34 (0x10
+  num_clients 1, 0x13 nm_modem 0x1e, 0x14 bdf 1, 0x16 m3 1, 0x17 m3_cache 1, 0x1A cal_done 0, 0x1C mem_cfg_mode 0),
+  REQUEST_MEM_IND 0x35 -> RESPOND_MEM 0x36 (segments from low RAM, e.g. 0xd1000000 16 MiB), FW_MEM_READY 0x37,
+  CAP 0x24, BDF 0x25 (bdwlan.e*), M3 0x3C (m3.bin), FW_READY 0x21, WLAN_CFG 0x23, WLAN_MODE 0x22.
 - **2026-10-24: QRTR up to the QCA6390 firmware (0126, `sweetwlan=7`, log `research/logs/live-0126.txt`).**
   MHI channels 20/21 start (code 1), firmware QRTR v1 HELLO from node 7, `NEW_SERVER service 0x45 instance
   0x101 node 7 port 0x1` = WLFW. Fixes on the way: 0125 (channel types/event rings set before M0), 0126 (MHI
