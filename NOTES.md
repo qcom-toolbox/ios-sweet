@@ -2,13 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24 0127 boot (CI run 40092013165, log `research/logs/live-0127.txt`):** IND_REGISTER result 0,
-  HOST_CAP result 0, REQUEST_MEM ind 0x35 = 2 segments: 0x5e0000 type 1 (DDR) + 0xd8000 type 4 (CALDB), placed at
-  0xd1000000 (0x6d8000 total). After that the Wi-Fi thread prints nothing more: no RESPOND_MEM result, no
-  "no response" (2 s timeout), no FW_MEM_READY timeout; one more QRTR type 7 (RESUME_TX) arrived. The rest of iOS
-  keeps running (SpringBoard, touch). Guess, not checked: the thread hangs on a BAR0 access after the firmware
-  starts using the memory (SMMU streams are bypass, so not an SMMU fault). Next: add a log line before/after the
-  RESPOND_MEM send, and check PCIe link / MHISTATUS with `tools/sweet-mon.py` while it hangs.
+- **2026-10-24 0127 boot: WLFW steps 1-5 all OK (CI run 40092013165, log `research/logs/live-0127.txt`).**
+  IND_REGISTER result 0, HOST_CAP result 0, REQUEST_MEM ind 0x35 = 2 segments: 0x5e0000 type 1 (DDR) at
+  0xd1000000 + 0xd8000 type 4 (CALDB) at 0xd1600000; `SWEET PCIE: stage 8 done, result 0`. The RESPOND_MEM /
+  FW_MEM_READY log lines were lost on the UDP log (line 208 starts with a cut `SWE`; SpringBoard was logging at
+  the same time), so I checked with `tools/sweet-mon.py` while it was up: IPCR receive buffers hold the
+  RESPOND_MEM response (txn 3, msg 0x36, result 0 error 0) and the FW_MEM_READY indication 0x37 (confirm_rx,
+  answered with RESUME_TX). Chip afterwards: PCIe linkctl 0xb0120008, MHICTRL 0x200, MHISTATUS 0x201 (M0, no
+  SYS_ERR), BHI execenv 2, errcode 0. The UDP log can drop lines under load: check the stage result line.
+  Next: CAP 0x24, BDF_DOWNLOAD 0x25, M3_INFO 0x3C, FW_READY 0x21.
 - **2026-10-24: 0127 WLFW QMI steps 1-5 (built on CI).** 0127 = `research/ipcr-wlfw-wip.diff` +
   new `bsd/dev/sweet_wlfw.c`, run for `sweetwlan=8` after IPCR finds WLFW: IND_REGISTER 0x20, HOST_CAP 0x34,
   wait REQUEST_MEM 0x35 (segments logged), RESPOND_MEM 0x36 from low RAM `sweetwlfwmem` (default 0xd1000000,
