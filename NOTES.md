@@ -2,7 +2,12 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0136 SoC data-path rings (built on CI, not yet booted).** New `bsd/dev/sweet_wldp.c` = ath11k
+- **2026-10-24 0136 boot: DP rings accepted (CI run 40111446641, log `research/logs/live-0136.txt`).**
+  `SWEET WLDP: 15 rings at 0xd1880000-0xd18f6d00, 8191 link descriptors at 0xd1900000, idle HP 16382, REO gen
+  0xc0000dc, 0 bad`; then WLAN_INI/CFG result 0 (WLAN_MODE line lost on UDP, stage result shows it passed), WMI
+  READY, HTT 3.90, country 00, scan 4 BSS / 5 frames, stage 8 result 0; chip afterwards MHISTATUS 0x201, errcode
+  0. New `tools/umi-usbnet.sh`: start it right after a boot, it waits for en8 and sets 192.168.7.1 (one sudo).
+- **2026-10-24: 0136 SoC data-path rings (CI run 40111446641, `xnu/out-0136`).** New `bsd/dev/sweet_wldp.c` = ath11k
   ath11k_dp_alloc + pdev_reo_setup, run after the CE rings and before WLAN_CFG (ath11k order). 15 rings: WBM idle
   link (+ 8191 link descriptors, 128 B, one bank at window +0x100000), SW2WBM release, TCL cmd/status/data0,
   TX completion (WBM2SW0), REO reinject, RX release (WBM2SW3), REO exception/cmd/status, REO2SW1-4; TCL data

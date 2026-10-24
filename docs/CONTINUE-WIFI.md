@@ -40,8 +40,11 @@ MAC in the chip's OTP). 0133: hw mode DBS, 2.4 GHz channel list, STA vdev
 (02:00:5e:77:ee:10), passive scan: it completes and beacons from nearby access
 points arrive as WMI_MGMT_RX. 0134: active scan (probe requests answered). The
 firmware's regulatory country is "CN" (Xiaomi default). 0135: HTT connected
-(version 3.90) and the country set to world "00" (user's choice). Next: the data
-path rings (ath11k dp.c) and their HTT SRING_SETUP, then association.
+(version 3.90) and the country set to world "00" (user's choice). 0136:
+`bsd/dev/sweet_wldp.c` sets up the SoC data-path rings (ath11k_dp_alloc; table from
+`tools/ath11k-gen-dp.py`); all readbacks match and the firmware keeps working.
+Next: RXDMA rings per MAC with HTT SRING_SETUP, RX buffers, RX filter; then
+association. After each boot, `tools/umi-usbnet.sh` sets up the USB network.
 
 ## What to do next
 
