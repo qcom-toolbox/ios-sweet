@@ -2,7 +2,7 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0129 WLFW M3 + FW_READY (built on CI, not yet booted).** After the board data: `m3.bin` (266684
+- **2026-10-24: 0129 WLFW M3 + FW_READY (CI run 40094490013, `xnu/out-0129`, not yet booted).** After the board data: `m3.bin` (266684
   bytes, ELF) read from `image/qca6390` into the firmware memory window, 1 MiB aligned after the REQUEST_MEM
   segments (0xd1700000 with 0127/0128's sizes), M3_INFO 0x3C (TLV 0x01 u64 address, 0x02 u32 size), then wait
   up to 10 s for FW_READY 0x21. Stage 8 return codes 21-29 (28 = M3, 29 = no FW_READY).
