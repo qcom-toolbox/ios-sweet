@@ -2,7 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0144 unicast receive probe (built on CI, not yet booted).** RXDMA error-destination rings
+- **2026-10-24: 0145 transmit as native WiFi (built on CI, not yet booted).** ath11k only uses Ethernet encap
+  with module parameter frame_mode=2 (mac.c clears the encap offload otherwise); its default and tested path is
+  NATIVE_WIFI. So VDEV TX_ENCAP = 1 and the TCL encap = 1, frames = 802.11 header (FC 0x0108 data+ToDS, A1
+  BSSID, A2 source, A3 destination) + LLC/SNAP + payload. RX decap stays Ethernet (it works).
+- **2026-10-24 0144 boot (CI run 40129543318, log `research/logs/live-0144.txt`).** The hotspot's address was
+  learned from its own mDNS frames (Ethernet source = BSSID, private 10.x address). An ARP request to it and a
+  DISCOVER to its MAC were both acked but never answered; RXDMA error rings empty; multicast from the AP still
+  arrives. Every stack answers ARP for itself, so the AP never got usable frames from us: the problem is our
+  transmit framing, not receive. 12 sent / 12 acked. Stage 8 result 62.
+- **2026-10-24: 0144 unicast receive probe (CI run 40129543318, `xnu/out-0144`).** RXDMA error-destination rings
   (133/148) counted and first entries dumped raw; IPv4 source/destination of the first received frames logged,
   and the hotspot's own IP learned from frames whose Ethernet source is the BSSID; then one DHCP DISCOVER to the
   AP's MAC (not broadcast) and an ARP probe to the learned AP address - a reply is a unicast frame to us.
