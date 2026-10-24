@@ -2,7 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0135 HTT connect + version, world regulatory country (CI run 40109099244, `xnu/out-0135`, not yet booted).** ath11k
+- **🎉 2026-10-24 0135 boot: HTT up, country world (CI run 40109099244, log `research/logs/live-0135.txt`).** HTT
+  connect status 0 -> endpoint 1, WMI control now endpoint 2 (max message 2040), `HTT: target version 3.90` (CE1),
+  `set country "00"` answered by REG_CHAN_LIST_CC `country "00" id 0 domain 0x60` on both phys (was CN, id 156,
+  0x57). Active scan as in 0134: 3 BSS, 4 management frames, completed; stage 8 result 0. Cosmetic: the generic
+  CONNECT_RESP printf prints the WMI fields, so the HTT response line shows "endpoint 0 max message 0"; the
+  dedicated `(HTT) connect answered ... endpoint 1` line is the right one. **Next: data path** - ath11k dp.c
+  ath11k_dp_alloc / pdev_alloc: WBM idle link + SW2WBM release, TCL data/completion, REO dest/exception/reinject/
+  cmd/status, RXDMA refill/monitor rings, HTT SRING_SETUP for each, then peer/assoc (vdev start, auth/assoc via
+  WMI mgmt tx), WPA keys.
+- **2026-10-24: 0135 HTT connect + version, world regulatory country (CI run 40109099244, `xnu/out-0135`).** ath11k
   core-start order: after HTC READY connect HTT_DATA_MSG 0x300 (flags 0x8 = no credit flow) before WMI control;
   CE4 source ring added (HTT host->target); after SET_HW_MODE: HTT VERSION_REQ (u32 type 0) on CE4, wait for
   VERSION_CONF on CE1 (major must be 3, as ath11k). Then WMI_SET_CURRENT_COUNTRY 0x3a001 (tag 0x25f, pdev 0)
