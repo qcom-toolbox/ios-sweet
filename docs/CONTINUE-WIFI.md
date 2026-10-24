@@ -34,8 +34,10 @@ no shadow registers), HTC READY, WMI control connected on endpoint 1, and the
 firmware sends SERVICE_AVAILABLE, SERVICE_READY, SERVICE_READY_EXT, _EXT2
 (log `research/logs/live-0131.txt`; stage 8 codes 33-38 cover CE/HTC).
 
-Next: WMI init (ath11k wmi.c `ath11k_wmi_cmd_init`, with the host memory the
-SERVICE_READY event requests), WMI_READY (MAC address), then pdev/vdev and a scan.
+0132: WMI_INIT (qca6390 resource config, no host memory: SERVICE_READY asks for
+none) is answered by WMI_READY status 0, but the MAC address in it is zero (no
+MAC in the chip's OTP). Next: pdev setup and a STA vdev with a locally
+administered MAC, then WMI_START_SCAN.
 
 ## What to do next
 

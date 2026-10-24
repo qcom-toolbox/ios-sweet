@@ -2,7 +2,17 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0132 WMI init + WMI_READY (built on CI, not yet booted).** In `sweet_wlce.c`: HTC trailer credit
+- **🎉 2026-10-24 0132 boot: WMI initialized, WMI_READY status 0 (CI run 40099804000, log
+  `research/logs/live-0132.txt`).** Service-ready set seen (0x3, 0x1, 0x4009, 0x4022), INIT sent with chain mask 0x3,
+  then events 0x16005, 0x3a001 x2 (REG_CHAN_LIST_CC, 132 B each), 0x2 READY: `status 0, MAC 00:00:00:00:00:00`,
+  stage 8 result 0. SERVICE_READY (read from CE2 buffer 3 with sweet-mon, its log line was lost): fw build
+  0x1014046e, phy_cap 3, **2 RF chains**, ht_cap 0x381b, vht_cap 0x739139b2, tx power 0x3f, max_bcn_ie 0x300,
+  **num_mem_reqs 0** (no host memory needed), 0xb6 scan channels, hw_bd_id 0. READY raw (CE2 buffer 9): fixed MAC 0,
+  num_extra_mac_addr 1, num_total_peers 16, extra MAC array (TLV 0x13) also 0 -> no MAC in OTP (fits board id
+  0xff). Android's cnss2 hands the firmware a MAC over QMI from Xiaomi's storage; for us the vdev can use a
+  locally administered MAC. After READY a new QRTR service appeared: `service 0x39 instance 0x1 node 7 port 0x2`.
+  **Next:** WMI pdev setup and a vdev (STA, own MAC), then WMI_START_SCAN and scan/channel events.
+- **2026-10-24: 0132 WMI init + WMI_READY (CI run 40099804000, `xnu/out-0132`).** In `sweet_wlce.c`: HTC trailer credit
   reports counted for the WMI endpoint (starts at 1 credit after connect, as ath11k for qca6390); WMI send on CE3
   (HTC flag 1 need-credit-update, u32 cmd id, TLVs); SERVICE_READY parsed (fw build, num_rf_chains, num_mem_reqs,
   hw_bd_id); wait for SERVICE_READY + EXT 0x4009 + EXT2 0x4022, then WMI_INIT_CMDID 0x1: INIT_CMD TLV 0x4a (abi 0,
