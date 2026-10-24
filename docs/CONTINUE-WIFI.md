@@ -29,7 +29,13 @@ for `sweetwlan=8`, and on 0130 every step returned result 0, ending with WLAN_MO
 - the UDP log drops lines under load: trust `SWEET PCIE: stage 8 done, result N`
   (21-32 = step 1-12 failed) and read memory with `tools/sweet-mon.py` when unsure.
 
-Next: copy engines / HAL SRNG / HTC / WMI (see "Later").
+0131 adds `bsd/dev/sweet_wlce.c`: copy-engine rings (polled, direct HP/TP writes,
+no shadow registers), HTC READY, WMI control connected on endpoint 1, and the
+firmware sends SERVICE_AVAILABLE, SERVICE_READY, SERVICE_READY_EXT, _EXT2
+(log `research/logs/live-0131.txt`; stage 8 codes 33-38 cover CE/HTC).
+
+Next: WMI init (ath11k wmi.c `ath11k_wmi_cmd_init`, with the host memory the
+SERVICE_READY event requests), WMI_READY (MAC address), then pdev/vdev and a scan.
 
 ## What to do next
 

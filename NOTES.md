@@ -2,7 +2,18 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0131 copy engines + HTC (built on CI, not yet booted).** New `bsd/dev/sweet_wlce.c` (ath11k v6.6
+- **🎉 2026-10-24 0131 boot: copy engines + HTC + WMI up (CI run 40098529455, log `research/logs/live-0131.txt`).**
+  QMI as in 0130, then `SWEET WLCE: rings at 0xd1800000: CE0 base 0xd1801000 (want 0xd1801000), CE2 dst base
+  0xd1802000 hp 62, 8 rings` (register writes through the window land; 31 buffers posted = hp 62 words),
+  WLAN_INI/CFG/MODE result 0, `HTC: READY on CE2: 2 credits of 2176 bytes, 5 endpoints`, `service 0x100 connect
+  status 0 endpoint 1 max message 2040`, CE0 hp 4 tp 4 (both sends completed), 4 WMI events, stage 8 result 0.
+  The per-event lines were lost on the UDP log; CE2 receive buffers read with `tools/sweet-mon.py` (CE2 buffers at
+  0xd1820000 + n*0x800): READY, CONNECT_RESP, then on endpoint 1 WMI 0x3 SERVICE_AVAILABLE (48 B), 0x1
+  SERVICE_READY (332 B), 0x4009 SERVICE_READY_EXT (1028 B), 0x4022 SERVICE_READY_EXT2 (72 B) - ath11k's sequence.
+  Direct HP/TP register writes work without shadow registers (at least while the MHI wake doorbell is held).
+  **Next:** WMI init (ath11k wmi.c ath11k_wmi_cmd_init: resource config + host memory chunks the SERVICE_READY
+  asks for), wait WMI_READY 0x2 (gives the MAC address), then pdev/vdev setup and a scan (WMI_START_SCAN_CMDID).
+- **2026-10-24: 0131 copy engines + HTC (CI run 40098529455, `xnu/out-0131`).** New `bsd/dev/sweet_wlce.c` (ath11k v6.6
   ce.c/hal.c/htc.c, qca6390 values). After FW_INIT_DONE and **before** WLAN_CFG (ath11k order): MHI wake doorbell
   (CHDB 127), CE rings in the window's upper 8 MiB (0xd1800000: rdp words, rings, 2 KiB buffers): CE0 (16) and
   CE3 (32) source rings, CE1/CE2/CE5 destination (32) + status (32) rings, 31 buffers posted each. Registers via
