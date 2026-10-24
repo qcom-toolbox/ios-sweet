@@ -2,7 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0128 WLFW CAP + BDF (CI run 40093588568, `xnu/out-0128`, not yet booted).** After FW_MEM_READY: CAP 0x24 (logs chip id,
+- **2026-10-24 0128 boot: CAP + BDF OK (log `research/logs/live-0128.txt`).** Steps 1-5 as in 0127, CAP result
+  shown only partly (UDP log cut the chip id / version lines; the build id `WLAN.HST.1.0.1.r1-01134-QCAHSTSWPL_
+  SILICONZ-1` survived), otp version 0x48001d, **board id 0xff** -> `bdwlan.elf` (57868 bytes, ELF), 10 segments
+  all result 0, `SWEET PCIE: stage 8 done, result 0`. Board id 0xff = OTP not programmed with a board id, so
+  cnss2's default bdwlan.elf; Xiaomi's region files `bd_j1*.elf` differ from it (sweetwlanbdf= can pick one if
+  calibration looks wrong later). Next: M3_INFO 0x3C (m3.bin) and wait FW_READY 0x21.
+- **2026-10-24: 0128 WLFW CAP + BDF (CI run 40093588568, `xnu/out-0128`).** After FW_MEM_READY: CAP 0x24 (logs chip id,
   soc id, firmware version/build, otp, board id), then BDF_DOWNLOAD 0x25 of `image/qca6390/bdwlan.eXX` (XX = board
   id; `bdwlan.elf` for 0xff; override `sweetwlanbdf=NAME`, e.g. one of the Xiaomi `bd_j1*.elf`) in 6 KiB
   segments, file_id = board id, type 1 for ELF. New `sweet_wlan_read_file()` reads files next to amss20.bin.
