@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0130 FW_INIT_DONE + WLAN_INI/CFG/MODE (built on CI, not yet booted).** Ready = FW_READY 0x21 or
+  FW_INIT_DONE 0x38 (ath11k qmi.c event handler treats both as firmware ready). Then, as
+  ath11k_qmi_firmware_start for qca6390 hw2.0 (Linux v6.6 hw.c/core.c: target_ce_count 9, svc_to_ce_map_len 14,
+  fw_wmi_diag_event true): WLAN_INI 0x2F (enablefwlog 1), WLAN_CFG 0x23 (host_version "WIN", 9 CE pipe configs,
+  14 service->pipe entries), WLAN_MODE 0x22 (mode 0 mission, hw_debug 0), then listen 1 s. **No shadow_reg_v2
+  (TLV 0x14) yet**, although qca6390 has supports_shadow_regs: the list is built from the host HAL rings, which
+  come with the copy-engine patch. Stage 8 return codes 21-32 (30 INI, 31 CFG, 32 MODE).
 - **2026-10-24 0129 boot: stage 8 result 29 = no FW_READY 0x21 in 10 s; firmware sent FW_INIT_DONE 0x38
   instead.** Log `research/logs/live-0129.txt` starts late (the Mac had no 192.168.7.1 yet), so steps 1-8 are
   only in memory, read with `tools/sweet-mon.py`: TX buffer holds M3_INFO (txn 0xf, addr 0xd1700000, size
