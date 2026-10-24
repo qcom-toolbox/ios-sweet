@@ -2,7 +2,14 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0127 WLFW QMI steps 1-5 (built on CI, not yet booted).** 0127 = `research/ipcr-wlfw-wip.diff` +
+- **2026-10-24 0127 boot (CI run 40092013165, log `research/logs/live-0127.txt`):** IND_REGISTER result 0,
+  HOST_CAP result 0, REQUEST_MEM ind 0x35 = 2 segments: 0x5e0000 type 1 (DDR) + 0xd8000 type 4 (CALDB), placed at
+  0xd1000000 (0x6d8000 total). After that the Wi-Fi thread prints nothing more: no RESPOND_MEM result, no
+  "no response" (2 s timeout), no FW_MEM_READY timeout; one more QRTR type 7 (RESUME_TX) arrived. The rest of iOS
+  keeps running (SpringBoard, touch). Guess, not checked: the thread hangs on a BAR0 access after the firmware
+  starts using the memory (SMMU streams are bypass, so not an SMMU fault). Next: add a log line before/after the
+  RESPOND_MEM send, and check PCIe link / MHISTATUS with `tools/sweet-mon.py` while it hangs.
+- **2026-10-24: 0127 WLFW QMI steps 1-5 (built on CI).** 0127 = `research/ipcr-wlfw-wip.diff` +
   new `bsd/dev/sweet_wlfw.c`, run for `sweetwlan=8` after IPCR finds WLFW: IND_REGISTER 0x20, HOST_CAP 0x34,
   wait REQUEST_MEM 0x35 (segments logged), RESPOND_MEM 0x36 from low RAM `sweetwlfwmem` (default 0xd1000000,
   16 MiB, each segment aligned to its size up to 1 MiB, zeroed), wait FW_MEM_READY 0x37, then listen 500 ms.
