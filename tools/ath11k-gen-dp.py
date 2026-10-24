@@ -17,29 +17,7 @@ ALL = strip(src['hal.h'] + '\n' + src['hal_desc.h'] + '\n' + src['dp.h'])
 m = re.search(r'const struct ath11k_hw_regs qca6390_regs = \{(.*?)\n\};', src['hw.c'], re.S)
 REGS = {k: int(v, 0) for k, v in re.findall(r'\.(\w+)\s*=\s*(0x[0-9a-fA-F]+|\d+)', m.group(1))}
 
-# enums
 ENUM = {}
-for body in re.findall(r'enum \w+ \{(.*?)\};', ALL, re.S):
-    v = -1
-    for e in body.split(','):
-        e = e.strip()
-        if not e or e.startswith('#'):
-            continue
-        if '=' in e:
-            k, x = [t.strip() for t in e.split('=', 1)]
-            try:
-                v = ev(x)
-            except Exception:
-                try:
-                    v = int(x, 0)
-                except Exception:
-                    v = ENUM.get(x, 0)
-        else:
-            k = e
-            v += 1
-        if re.match(r'^\w+$', k):
-            ENUM[k] = v
-
 # defines (single-line)
 DEF = {}
 for name, args, body in re.findall(r'#define\s+(\w+)(\([^)]*\))?[ \t]+((?:[^\n\\]|\\\n)*)', ALL):
@@ -65,6 +43,28 @@ def ev(x, depth=0):
     x = re.sub(r'\b[A-Za-z_]\w*\b', name, x)
     x = re.sub(r'(\d+)[uUlL]+\b', r'\1', x)
     return int(eval(x.replace('/', '//')))
+
+# enums (parsed after ev() exists, so BIT()/GENMASK() values evaluate)
+for body in re.findall(r'enum \w+ \{(.*?)\};', ALL, re.S):
+    v = -1
+    for e in body.split(','):
+        e = e.strip()
+        if not e or e.startswith('#'):
+            continue
+        if '=' in e:
+            k, x = [t.strip() for t in e.split('=', 1)]
+            try:
+                v = ev(x)
+            except Exception:
+                try:
+                    v = int(x, 0)
+                except Exception:
+                    v = ENUM.get(x, 0)
+        else:
+            k = e
+            v += 1
+        if re.match(r'^\w+$', k):
+            ENUM[k] = v
 
 STRUCTS = {}
 for nm, body in re.findall(r'struct (\w+) \{([^{}]*)\}\s*__packed;', ALL):

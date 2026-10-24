@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0138 monitor-status filter + receive report (built on CI, not yet booted).** After the receive
+  rings: report at 0.2 s, then ath11k_mac_config_mon_status_default: HTT RX_RING_SELECTION_CFG (H2T 0xc) for both
+  status rings (pdev 1/2, HTT ring 1, buffer 2048, TLVs 0x1201 = MPDU_START|PPDU_END|PPDU_END_STATUS_DONE, packet
+  flags 0x9049249/0x1249/0x9200000/0x1249249), report again 0.5 s later and after the scan. The report now counts
+  filled entries in the mac buf / err dst rings' memory and prints both pointer words, to settle the 0137
+  "macbuf hp 0" question; status TP should move once the filter is on. Generator fix: enum values written with
+  BIT()/GENMASK() evaluated to 0 before (the 0136 table is unchanged, checked by diff).
 - **2026-10-24 0137 boot: firmware takes the receive buffers (CI run 40112749946, log `research/logs/live-0137.txt`).**
   `7 receive rings at 0xd1a00000, 1277 buffers ..., HTT SRING_SETUP sent`, then `0.5 s after setup: refill tp
   2046/2046` - the firmware consumed all 1023 refill buffers (TP caught up with our HP) within 0.5 s, so the HTT
