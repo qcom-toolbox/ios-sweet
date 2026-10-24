@@ -2,6 +2,14 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0132 WMI init + WMI_READY (built on CI, not yet booted).** In `sweet_wlce.c`: HTC trailer credit
+  reports counted for the WMI endpoint (starts at 1 credit after connect, as ath11k for qca6390); WMI send on CE3
+  (HTC flag 1 need-credit-update, u32 cmd id, TLVs); SERVICE_READY parsed (fw build, num_rf_chains, num_mem_reqs,
+  hw_bd_id); wait for SERVICE_READY + EXT 0x4009 + EXT2 0x4022, then WMI_INIT_CMDID 0x1: INIT_CMD TLV 0x4a (abi 0,
+  0 host mem chunks - ath11k v6.6 never fills them), RESOURCE_CONFIG 0x4b (73 words, ath11k_init_wmi_config_qca6390
+  values, chain mask from num_rf_chains, flag1 BIT5, use_pdev_id 1, flags2 BIT9), empty ARRAY_STRUCT 0x12; no hw-mode
+  TLV (single pdev). Then wait 5 s for WMI_READY 0x2 (TLV 0x23: status, MAC address). Stage 8 codes: 39 no
+  service-ready set, 40 INIT send failed, 41 no READY / status != 0.
 - **🎉 2026-10-24 0131 boot: copy engines + HTC + WMI up (CI run 40098529455, log `research/logs/live-0131.txt`).**
   QMI as in 0130, then `SWEET WLCE: rings at 0xd1800000: CE0 base 0xd1801000 (want 0xd1801000), CE2 dst base
   0xd1802000 hp 62, 8 rings` (register writes through the window land; 31 buffers posted = hp 62 words),
