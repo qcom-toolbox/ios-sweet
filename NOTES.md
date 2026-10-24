@@ -2,6 +2,12 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0135 HTT connect + version, world regulatory country (built on CI, not yet booted).** ath11k
+  core-start order: after HTC READY connect HTT_DATA_MSG 0x300 (flags 0x8 = no credit flow) before WMI control;
+  CE4 source ring added (HTT host->target); after SET_HW_MODE: HTT VERSION_REQ (u32 type 0) on CE4, wait for
+  VERSION_CONF on CE1 (major must be 3, as ath11k). Then WMI_SET_CURRENT_COUNTRY 0x3a001 (tag 0x25f, pdev 0)
+  with **"00" (world) - the user's choice 2026-10-24**; `sweetwlancc=XX` overrides; the firmware should answer
+  with new REG_CHAN_LIST_CC events. Then the 0134 scan. Stage 8 codes: 48 HTT version, 49 country send.
 - **🎉 2026-10-24 0134 boot: active scan works - the QCA6390 transmits (CI run 40102230856, log
   `research/logs/live-0134.txt`, git-ignored).** Both BSS answered our probe requests: `probe-resp` from ch 1
   (2412 MHz, snr 32) and ch 6 (2437 MHz, snr 12), scan completed (`0x2 reason 0`), stage 8 result 0. Channel
