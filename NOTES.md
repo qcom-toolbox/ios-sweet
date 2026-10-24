@@ -2,7 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0137 receive rings + HTT SRING_SETUP (built on CI, not yet booted).** After the HTT version
+- **2026-10-24 0137 boot: firmware takes the receive buffers (CI run 40112749946, log `research/logs/live-0137.txt`).**
+  `7 receive rings at 0xd1a00000, 1277 buffers ..., HTT SRING_SETUP sent`, then `0.5 s after setup: refill tp
+  2046/2046` - the firmware consumed all 1023 refill buffers (TP caught up with our HP) within 0.5 s, so the HTT
+  ring setup was accepted. `macbuf hp 0 0, errdst hp 0 0, status tp 0 0` both times: unknown whether the firmware
+  keeps the mac-buf producer pointer elsewhere (e.g. its own register) or the buffers sit in its own list - next
+  boot should count non-zero entries in the mac buf rings' memory instead of reading the wrp word. Scan still 3
+  BSS, stage 8 result 0. The log ends normally at 18:58 (no panic line); by 20:01 the phone was back in TWRP
+  (cause not known - not checked whether it rebooted itself).
+- **2026-10-24: 0137 receive rings + HTT SRING_SETUP (CI run 40112749946, `xnu/out-0137`).** After the HTT version
   (ath11k_core_pdev_create -> dp_pdev_alloc, qca6390: rx_mac_buf_ring, no rxdma1, 2 MACs, pdev 0): LMAC rings
   in memory only (host pointer in "wrp" words at window +0x7f000 by LMAC index = ring id - 128, target pointer in
   rdp by ring id): refill 128 (HTT HOST1_TO_FW_RXBUF, SW->SW, 1023 x 2 KiB buffers), mac buf 129/144 (RXDMA_HOST_
