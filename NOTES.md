@@ -2,7 +2,17 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0138 monitor-status filter + receive report (built on CI, not yet booted).** After the receive
+- **🎉 2026-10-24 0138 boot: receive DMA path writes into host memory (CI run 40120833902, log
+  `research/logs/live-0138.txt`).** Report: `refill tp 2046/2046; macbuf filled 991 0 (wrp 0 0, rdp 0 0)` - the
+  firmware moved 991 of our buffers into mac buf ring 0 (129) itself; neither pointer word is updated (the
+  firmware keeps that producer pointer elsewhere), mac 1's ring stays empty. After the filter and the scan:
+  `status tp 0 16` - mac 1's monitor-status ring (147) consumed 8 buffers; read back with sweet-mon, status1
+  buffers 0-7 hold hardware TLVs (first words 0x280, 0x1819e, ...), buffer 8 untouched. Errdst rings empty.
+  Scan 5 BSS / 8 frames, stage 8 result 0 (line start cut on UDP). **Log format changed: lines carry NUL bytes,
+  so grep needs -a** (the 0138 watcher missed `stage 8 done` because grep saw a binary file).
+  **Next:** reap + parse monitor-status TLVs (RSSI per PPDU, replenish), then the association path (vdev start
+  on a channel, peer create, auth/assoc via WMI mgmt tx, then keys).
+- **2026-10-24: 0138 monitor-status filter + receive report (CI run 40120833902, `xnu/out-0138`).** After the receive
   rings: report at 0.2 s, then ath11k_mac_config_mon_status_default: HTT RX_RING_SELECTION_CFG (H2T 0xc) for both
   status rings (pdev 1/2, HTT ring 1, buffer 2048, TLVs 0x1201 = MPDU_START|PPDU_END|PPDU_END_STATUS_DONE, packet
   flags 0x9049249/0x1249/0x9200000/0x1249249), report again 0.5 s later and after the scan. The report now counts
