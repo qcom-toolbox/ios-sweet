@@ -74,7 +74,7 @@ Start with steps 1-5 only and test; then CAP; then the rest.
   series with `bash $TMPDIR/sweetwork/apply.sh xnu/patches $TMPDIR/sweetwork/chk`.
 - Commit, push `umi-scanout`, `gh workflow run xnu.yml --ref umi-scanout`, download the
   artifact to `xnu/out-01NN`.
-- Boot image + boot from TWRP: the helper `SWEET_TOOLBIN=DIR tools/umi-dev-boot.sh K TAG ARGS` does
+- Boot image + boot from TWRP: the helper `SWEET_TOOLBIN=$HOME/ios-sweet-port/toolbin tools/umi-dev-boot.sh K TAG ARGS` does
   `tools/mkpayload.py` + `BOARD=umi shim/build.sh` + `fastboot boot`; boot args used:
   `sweetusb=2 sweetwlan=8 sweetwlandelay=90` on top of the base line in
   `tools/umi-boot-image.sh`.
