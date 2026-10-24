@@ -2,7 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0139 monitor-status reap (built on CI, not yet booted).** `sweet_wldp_mon_reap()` runs in every
+- **2026-10-24 0139 boot: monitor-status reap works, two read-outs wrong (CI run 40122506135, log
+  `research/logs/live-0139.txt`).** `monitor status: 9 buffers, 9 ppdus, 9 mpdus, ..., 0 not done` - every reaped
+  buffer had STATUS_BUFFER_DONE and parsed to a PPDU end; buffers re-posted (status tp 20). Wrong: channel 0 (the
+  ath11k default filter has no PPDU_START TLV - expected) and "signal 76..138 dBm": rssi_comb raw 171..233 is a
+  signed byte already in dBm (-85..-23 dBm) - the firmware does the dB->dBm conversion (ath11k db2dbm path, no
+  noise-floor add). Fix in the next patch. Scan 7 BSS / 10 frames, stage 8 result 0.
+- **2026-10-24: 0139 monitor-status reap (CI run 40122506135, `xnu/out-0139`).** `sweet_wldp_mon_reap()` runs in every
   HTC poll once the receive rings exist (ath11k_dp_rx_reap_mon_status_ring + hal_rx_parse_mon_status): slot at
   host HP is reaped when the hardware TP has passed it, needs TLV STATUS_BUFFER_DONE 0x140 first, TLV walk (tag
   bits 9:1, len 25:10, 4-byte align, PPDU_END counted as 4), PPDU_START 0xcd channel, PHYRX_RSSI_LEGACY 0x4c
