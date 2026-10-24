@@ -16,6 +16,21 @@ Boot arg `sweetwlan=7` gets this far on the phone:
 
 NOTES.md (umi section, top) has the full history of each step.
 
+## Update 2026-10-24 (patches 0127-0130)
+
+Steps 1 and 2 below are done. `bsd/dev/sweet_wlfw.c` runs the whole message table
+for `sweetwlan=8`, and on 0130 every step returned result 0, ending with WLAN_MODE
+(mission mode); log `research/logs/live-0130.txt`. Differences from the plan:
+
+- the firmware sends FW_INIT_DONE 0x38, not FW_READY 0x21 (both are accepted);
+- ath11k sends WLAN_INI 0x2F (enablefwlog) before WLAN_CFG for qca6390;
+- WLAN_CFG goes without shadow_reg_v2 (TLV 0x14) until the host has CE rings;
+- board id is 0xff, so the board file is `bdwlan.elf`; `sweetwlanbdf=NAME` overrides it;
+- the UDP log drops lines under load: trust `SWEET PCIE: stage 8 done, result N`
+  (21-32 = step 1-12 failed) and read memory with `tools/sweet-mon.py` when unsure.
+
+Next: copy engines / HAL SRNG / HTC / WMI (see "Later").
+
 ## What to do next
 
 ### Step 1: apply the saved IPCR changes
