@@ -2,7 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0140 join an open network (built on CI, not yet booted).** After the scan, if boot-arg
+- **🎉 2026-10-24 0140 boot: the phone associates with the user's open 2.4 GHz network (CI run 40123694108, log
+  `research/logs/live-0140.txt`, git-ignored).** Every step answered first time: HTT `peer map (type 0x3): vdev 0
+  peer id 2`, `vdev 0 start response type 0 status 0`, `mgmt tx 1 done, status 0` (acked), `auth reply: algorithm
+  0 seq 2 status 0`, `mgmt tx 2 done, status 0`, `assoc reply: status 0, AID 1, AP capability 0x1421`, `peer assoc
+  confirmed`, VDEV_UP + AUTHORIZE, no kickout in the following 2 s, stage 8 result 0. Monitor status now reads
+  -86..-20 dBm (signed fix works; the AP is about -20 dBm). The `HTC: CE2 endpoint 0, 0 bytes, flags 0x2` lines
+  are HTC credit reports (trailer only, no payload) - harmless. **Next: data path** - TX: TCL data ring entries
+  (hal_tcl_data_cmd) + WBM2SW completion, frames 802.3 or native-wifi with the peer's AST; RX: REO destination
+  rings (rx_desc + payload), then DHCP / ARP / ping in the kernel, then an IOKit network interface.
+- **2026-10-24: 0140 join an open network (CI run 40123694108, `xnu/out-0140`).** After the scan, if boot-arg
   `sweetwlanssid=NAME` (`_` = space) names a network that was heard: PEER_CREATE 0x6001 -> HTT PEER_MAP (T2H 0x3
   / 0x1e), VDEV_START 0x5003 on the AP's channel (MODE_11G, LDPC rx) -> VDEV_START_RESP 0x5001, open-system auth
   and assoc request (SSID, 8 + 4 legacy rates, listen interval 1) via MGMT_TX_SEND 0x7008 (frame at window
