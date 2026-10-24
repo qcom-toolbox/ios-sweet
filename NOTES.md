@@ -2,6 +2,14 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0139 monitor-status reap (built on CI, not yet booted).** `sweet_wldp_mon_reap()` runs in every
+  HTC poll once the receive rings exist (ath11k_dp_rx_reap_mon_status_ring + hal_rx_parse_mon_status): slot at
+  host HP is reaped when the hardware TP has passed it, needs TLV STATUS_BUFFER_DONE 0x140 first, TLV walk (tag
+  bits 9:1, len 25:10, 4-byte align, PPDU_END counted as 4), PPDU_START 0xcd channel, PHYRX_RSSI_LEGACY 0x4c
+  rssi_comb (bits 15:8 at +140) - 95 dBm, MPDU_START 0xcf count, PPDU done at 0x13f / tag 0; same buffer
+  re-posted (ath11k allocates new), one spare per status ring for the slot left empty at setup; host HP to wrp.
+  Logs the first 8 PPDUs (channel, MPDUs, signal), after the scan listens 3 s more and prints
+  `SWEET WLDP: monitor status: N buffers, N ppdus, N mpdus, signal a..b dBm, N not done`.
 - **🎉 2026-10-24 0138 boot: receive DMA path writes into host memory (CI run 40120833902, log
   `research/logs/live-0138.txt`).** Report: `refill tp 2046/2046; macbuf filled 991 0 (wrp 0 0, rdp 0 0)` - the
   firmware moved 991 of our buffers into mac buf ring 0 (129) itself; neither pointer word is updated (the
