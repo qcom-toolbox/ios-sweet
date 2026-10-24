@@ -2,6 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0131 copy engines + HTC (built on CI, not yet booted).** New `bsd/dev/sweet_wlce.c` (ath11k v6.6
+  ce.c/hal.c/htc.c, qca6390 values). After FW_INIT_DONE and **before** WLAN_CFG (ath11k order): MHI wake doorbell
+  (CHDB 127), CE rings in the window's upper 8 MiB (0xd1800000: rdp words, rings, 2 KiB buffers): CE0 (16) and
+  CE3 (32) source rings, CE1/CE2/CE5 destination (32) + status (32) rings, 31 buffers posted each. Registers via
+  the PCIe window (0x310c, BAR0+0x80000): CE n src R0 0xa00000+n*0x2000, dst R0 +0x1000, status R0 dst+0x58, R2
+  +0x400 / +0x408; TCL1 layout for source-direction rings, REO1 layout for status rings; no MSI, no shadow regs
+  (HP/TP written directly). After WLAN_MODE: wait HTC READY (3 s), connect WMI_CONTROL 0x100 (1 credit, as ath11k
+  for qca6390), SETUP_COMPLETE_EX, log WMI events for 3 s (SERVICE_READY = 0x1 expected). Stage 8 codes: 33 = CE
+  init (ring base readback wrong), 34 no HTC READY, 35/36 connect send/response, 37 setup send, 38 no WMI event.
+  m3.bin and segments now must end below window +0x800000.
 - **🎉 2026-10-24 0130 boot: WLFW QMI complete, firmware in mission mode (CI run 40096953947, log
   `research/logs/live-0130.txt`).** IND_REGISTER, HOST_CAP, REQUEST_MEM (0x5e0000 + 0xd8000), CAP (board id
   0xff, otp 0x48001d), BDF bdwlan.elf 10/10 segments, m3.bin at 0xd1700000, FW_INIT_DONE 0x38 (arrived during
