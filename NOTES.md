@@ -2,6 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0137 receive rings + HTT SRING_SETUP (built on CI, not yet booted).** After the HTT version
+  (ath11k_core_pdev_create -> dp_pdev_alloc, qca6390: rx_mac_buf_ring, no rxdma1, 2 MACs, pdev 0): LMAC rings
+  in memory only (host pointer in "wrp" words at window +0x7f000 by LMAC index = ring id - 128, target pointer in
+  rdp by ring id): refill 128 (HTT HOST1_TO_FW_RXBUF, SW->SW, 1023 x 2 KiB buffers), mac buf 129/144 (RXDMA_HOST_
+  BUF, SW->HW, pdev 1/2), RXDMA err dst 133/148 (NON_MONITOR_DEST, HW->SW), monitor status 132/147 (SW->HW, 127
+  buffers each). Buffer cookie = buf id, RBM SW1 (4). HTT H2T 0xb htt_srng_setup_cmd per ring on CE4 (new
+  `sweet_wlce_htt_send`), ath11k interrupt/low-threshold values, LOOP_CNT_DIS for SW->HW. Sizes: refill 1024
+  (ath11k 4096), status 128 (1024). Check: `SWEET WLDP: 0.5 s after setup: refill tp ...` - the firmware moving
+  refill buffers into the mac buf rings advances refill tp / macbuf hp. Stage codes: 50 RX rings, 51 DP rings
+  (0136 code 50 moved to 51). Monitor-status RX filter (ath11k_mac_config_mon_status_default) not yet.
 - **2026-10-24 0136 boot: DP rings accepted (CI run 40111446641, log `research/logs/live-0136.txt`).**
   `SWEET WLDP: 15 rings at 0xd1880000-0xd18f6d00, 8191 link descriptors at 0xd1900000, idle HP 16382, REO gen
   0xc0000dc, 0 bad`; then WLAN_INI/CFG result 0 (WLAN_MODE line lost on UDP, stage result shows it passed), WMI
