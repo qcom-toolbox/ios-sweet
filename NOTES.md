@@ -2,6 +2,11 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0128 WLFW CAP + BDF (built on CI, not yet booted).** After FW_MEM_READY: CAP 0x24 (logs chip id,
+  soc id, firmware version/build, otp, board id), then BDF_DOWNLOAD 0x25 of `image/qca6390/bdwlan.eXX` (XX = board
+  id; `bdwlan.elf` for 0xff; override `sweetwlanbdf=NAME`, e.g. one of the Xiaomi `bd_j1*.elf`) in 6 KiB
+  segments, file_id = board id, type 1 for ELF. New `sweet_wlan_read_file()` reads files next to amss20.bin.
+  Stage 8 return codes now 21-27 (26 = CAP, 27 = BDF). Next: M3_INFO 0x3C (m3.bin), FW_READY 0x21.
 - **2026-10-24 0127 boot: WLFW steps 1-5 all OK (CI run 40092013165, log `research/logs/live-0127.txt`).**
   IND_REGISTER result 0, HOST_CAP result 0, REQUEST_MEM ind 0x35 = 2 segments: 0x5e0000 type 1 (DDR) at
   0xd1000000 + 0xd8000 type 4 (CALDB) at 0xd1600000; `SWEET PCIE: stage 8 done, result 0`. The RESPOND_MEM /
