@@ -2,7 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0130 FW_INIT_DONE + WLAN_INI/CFG/MODE (built on CI, not yet booted).** Ready = FW_READY 0x21 or
+- **🎉 2026-10-24 0130 boot: WLFW QMI complete, firmware in mission mode (CI run 40096953947, log
+  `research/logs/live-0130.txt`).** IND_REGISTER, HOST_CAP, REQUEST_MEM (0x5e0000 + 0xd8000), CAP (board id
+  0xff, otp 0x48001d), BDF bdwlan.elf 10/10 segments, m3.bin at 0xd1700000, FW_INIT_DONE 0x38 (arrived during
+  the M3_INFO wait), WLAN_INI / WLAN_CFG / WLAN_MODE all result 0, `SWEET PCIE: stage 8 done, result 0`. Chip
+  afterwards: linkctl 0xb0120008, MHICTRL 0x200, MHISTATUS 0x201, execenv 2, errcode 0. WLAN_CFG was accepted
+  without shadow_reg_v2. **Next:** copy engines (CE 0-8 rings in DMA memory, HAL SRNG registers, then
+  shadow_reg_v2 in WLAN_CFG), HTC connect, WMI init (ath11k ce.c/hal.c/htc.c/wmi.c), then the `/arm-io/wlan` ADT
+  node and topaz 0900 Apple80211 for wifid.
+- **2026-10-24: 0130 FW_INIT_DONE + WLAN_INI/CFG/MODE (CI run 40096953947, `xnu/out-0130`).** Ready = FW_READY 0x21 or
   FW_INIT_DONE 0x38 (ath11k qmi.c event handler treats both as firmware ready). Then, as
   ath11k_qmi_firmware_start for qca6390 hw2.0 (Linux v6.6 hw.c/core.c: target_ce_count 9, svc_to_ce_map_len 14,
   fw_wmi_diag_event true): WLAN_INI 0x2F (enablefwlog 1), WLAN_CFG 0x23 (host_version "WIN", 9 CE pipe configs,
