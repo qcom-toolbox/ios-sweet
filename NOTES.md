@@ -2,7 +2,18 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0141 data path + DHCP/ARP/ping (built on CI, not yet booted).** Ethernet mode: VDEV_SET_PARAM
+- **2026-10-24: 0142 STA power save off (built on CI, not yet booted).** ath11k add_interface for a STA also
+  sets VDEV_PARAM_NSS (0x22) = chains, STA_POWERSAVE_PARAM (0x9002) RX_WAKE_POLICY=WAKE, TX_WAKE_THRESHOLD=ALWAYS,
+  PSPOLL_COUNT=NO_MAX and STA_POWERSAVE_MODE (0x9001) = DISABLED - 0141 left the firmware defaults. Leading guess
+  for 0141's silence: the firmware went into power save. RX log now 12 frames with destination class (bcast /
+  mcast / unicast) and EtherType (no addresses); monitor-status totals printed after DHCP too.
+- **2026-10-24 0141 boot: data moves both ways, but nothing received after association (CI run 40126009508,
+  log `research/logs/live-0141.txt`).** TX: each of 3 DHCP DISCOVERs completed twice (FW release source 3 and
+  TQM source 0, reason 0 = acked by the AP): `tx 3 sent, 6 done, 3 acked`. RX: 5 frames through REO2SW2 (ring
+  index 1) in the 2 s right after VDEV_UP/AUTHORIZE (len 81 / 54, push 1 routed, err 0, first+last, done,
+  decap 2, L3 pad 2), buffers recycled. Then nothing for ~10 s - no OFFER (stage 8 result 62); no rx release /
+  REO exception entries, no kickout event.
+- **2026-10-24: 0141 data path + DHCP/ARP/ping (CI run 40126009508, `xnu/out-0141`).** Ethernet mode: VDEV_SET_PARAM
   TX_ENCAP (0x30) / RX_DECAP (0x5b) = 2 after VDEV_CREATE (ath11k add_interface with offload). After the peer map,
   ath11k_dp_peer_setup: PEER_SET_PARAM DEFAULT_ROUTING (0x13) = 3, REORDER_QUEUE_SETUP (0x6013) for TID 0-16 with
   REO queue descriptors at window +0x4c0000 (ath11k_hal_reo_qdesc_setup values). TX: TCL data entry (Ethernet,
