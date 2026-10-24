@@ -2,6 +2,10 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0129 WLFW M3 + FW_READY (built on CI, not yet booted).** After the board data: `m3.bin` (266684
+  bytes, ELF) read from `image/qca6390` into the firmware memory window, 1 MiB aligned after the REQUEST_MEM
+  segments (0xd1700000 with 0127/0128's sizes), M3_INFO 0x3C (TLV 0x01 u64 address, 0x02 u32 size), then wait
+  up to 10 s for FW_READY 0x21. Stage 8 return codes 21-29 (28 = M3, 29 = no FW_READY).
 - **2026-10-24 0128 boot: CAP + BDF OK (log `research/logs/live-0128.txt`).** Steps 1-5 as in 0127, CAP result
   shown only partly (UDP log cut the chip id / version lines; the build id `WLAN.HST.1.0.1.r1-01134-QCAHSTSWPL_
   SILICONZ-1` survived), otp version 0x48001d, **board id 0xff** -> `bdwlan.elf` (57868 bytes, ELF), 10 segments
