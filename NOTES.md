@@ -2,7 +2,14 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0129 WLFW M3 + FW_READY (CI run 40094490013, `xnu/out-0129`, not yet booted).** After the board data: `m3.bin` (266684
+- **2026-10-24 0129 boot: stage 8 result 29 = no FW_READY 0x21 in 10 s; firmware sent FW_INIT_DONE 0x38
+  instead.** Log `research/logs/live-0129.txt` starts late (the Mac had no 192.168.7.1 yet), so steps 1-8 are
+  only in memory, read with `tools/sweet-mon.py`: TX buffer holds M3_INFO (txn 0xf, addr 0xd1700000, size
+  0x411bc), m3.bin is at 0xd1700000 (7f 45 4c 46), RX buffers hold the M3_INFO response (result 0) and an
+  indication `04 0300 3800 0000` = msg 0x38 FW_INIT_DONE, no payload. Chip afterwards healthy: linkctl
+  0xb0120008, MHICTRL 0x200, MHISTATUS 0x201, execenv 2, errcode 0. Next (0130): accept 0x38 as ready
+  (ath11k handles FW_INIT_DONE like FW_READY), then WLAN_CFG 0x23 / WLAN_MODE 0x22.
+- **2026-10-24: 0129 WLFW M3 + FW_READY (CI run 40094490013, `xnu/out-0129`).** After the board data: `m3.bin` (266684
   bytes, ELF) read from `image/qca6390` into the firmware memory window, 1 MiB aligned after the REQUEST_MEM
   segments (0xd1700000 with 0127/0128's sizes), M3_INFO 0x3C (TLV 0x01 u64 address, 0x02 u32 size), then wait
   up to 10 s for FW_READY 0x21. Stage 8 return codes 21-29 (28 = M3, 29 = no FW_READY).
