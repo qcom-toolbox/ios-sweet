@@ -2,7 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0134 active scan (built on CI, not yet booted).** Default now active (`sweetwlanscan=0` for the
+- **🎉 2026-10-24 0134 boot: active scan works - the QCA6390 transmits (CI run 40102230856, log
+  `research/logs/live-0134.txt`, git-ignored).** Both BSS answered our probe requests: `probe-resp` from ch 1
+  (2412 MHz, snr 32) and ch 6 (2437 MHz, snr 12), scan completed (`0x2 reason 0`), stage 8 result 0. Channel
+  numbers now right. **Regulatory: firmware says country "CN" (id 156, domain 0x57) on both phys** - the default
+  from Xiaomi's board data / firmware, not where the phone is. CN allows 2.4 GHz ch 1-13 like the EU, but before
+  5 GHz or longer use the host should set the real country (ath11k: WMI_SET_CURRENT_COUNTRY / init country,
+  `ath11k_wmi_send_set_current_country_cmd`). Still 1 frame per BSS (firmware filters duplicates).
+  **Next:** country setting, then the data path (HTT version, DP rings) and association.
+- **2026-10-24: 0134 active scan (CI run 40102230856, `xnu/out-0134`).** Default now active (`sweetwlanscan=0` for the
   0133 passive scan): channel list without the PASSIVE flag (1-13 are active channels in the EU), START_SCAN with
   one wildcard SSID (wmi_ssid, length 0) and probe-request IEs Supported Rates + Extended Rates (ie_len 16), from
   vdev MAC 02:00:5e:77:ee:10. BSS lines now show the channel number (MGMT_RX +0) and MHz derived from it (this

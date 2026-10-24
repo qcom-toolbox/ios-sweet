@@ -38,8 +38,9 @@ firmware sends SERVICE_AVAILABLE, SERVICE_READY, SERVICE_READY_EXT, _EXT2
 none) is answered by WMI_READY status 0, but the MAC address in it is zero (no
 MAC in the chip's OTP). 0133: hw mode DBS, 2.4 GHz channel list, STA vdev
 (02:00:5e:77:ee:10), passive scan: it completes and beacons from nearby access
-points arrive as WMI_MGMT_RX. Next: active scan, then the data path (HTT, DP
-rings) and association.
+points arrive as WMI_MGMT_RX. 0134: active scan (probe requests answered). The
+firmware's regulatory country is "CN" (Xiaomi default). Next: set the real
+country over WMI, then the data path (HTT, DP rings) and association.
 
 ## What to do next
 
