@@ -2,7 +2,17 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0145 transmit as native WiFi (built on CI, not yet booted).** ath11k only uses Ethernet encap
+- **2026-10-24: 0146 give the firmware a MAC (built on CI, not yet booted).** Hypothesis: hardware-built data
+  frames carry the firmware's own (zero, OTP empty) MAC as transmitter address, so the AP acks them (RA matches)
+  but drops them as from an unknown station; auth/assoc worked because WMI mgmt TX uses the frame bytes. Sends
+  QMI WLFW_MAC_ADDR_REQ 0x33 (TLV 0x10, 6 bytes; from cnss2, not ath11k - refusal only logged) after FW_INIT_DONE,
+  and WMI_PDEV_SET_BASE_MACADDR (0x400d, tag 0xac, {pdev_id, mac}; unused by ath11k) before the vdev is created,
+  both with 02:00:5e:77:ee:10.
+- **2026-10-24 0145 boot (CI run 40130623195, log `research/logs/live-0145.txt`): native WiFi made no
+  difference.** The TX buffer holds a correct frame (FC 08 01, A1 BSSID, A2 our MAC, A3 broadcast, LLC/SNAP
+  aa aa 03 00 00 00 08 00, DHCP), completions identical (FW HTT status 5 = MEC_NOTIFY, confirmed in hal_desc.h and
+  ignored by ath11k except for WDS; TQM reason 0 = acked); no answer to DHCP or ARP; result 62.
+- **2026-10-24: 0145 transmit as native WiFi (CI run 40130623195, `xnu/out-0145`).** ath11k only uses Ethernet encap
   with module parameter frame_mode=2 (mac.c clears the encap offload otherwise); its default and tested path is
   NATIVE_WIFI. So VDEV TX_ENCAP = 1 and the TCL encap = 1, frames = 802.11 header (FC 0x0108 data+ToDS, A1
   BSSID, A2 source, A3 destination) + LLC/SNAP + payload. RX decap stays Ethernet (it works).
