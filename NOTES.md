@@ -2,6 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0136 SoC data-path rings (built on CI, not yet booted).** New `bsd/dev/sweet_wldp.c` = ath11k
+  ath11k_dp_alloc + pdev_reo_setup, run after the CE rings and before WLAN_CFG (ath11k order). 15 rings: WBM idle
+  link (+ 8191 link descriptors, 128 B, one bank at window +0x100000), SW2WBM release, TCL cmd/status/data0,
+  TX completion (WBM2SW0), REO reinject, RX release (WBM2SW3), REO exception/cmd/status, REO2SW1-4; TCL data
+  entries pre-tagged 0x144, REO cmd numbers, ipq8074 reo_setup (as qca6390_ops), 48 DSCP->TID maps. Table
+  generated from ath11k headers with `tools/ath11k-gen-dp.py`. Deviations: link descs 8192 (32768), TX comp
+  1024 (32768), REO dst 1024 (2048), REO status 512 (2048) - window space for RX buffers. Logs `SWEET WLDP:`
+  ring count, idle HP, REO gen, ring-base readback mismatches; stage 8 code 50 = DP init failed. Also fixed
+  the 0135 HTT connect log line. **Next (0137):** RXDMA refill/monitor rings per MAC (LMAC rings via HTT
+  SRING_SETUP), RX buffers, HTT RX filter.
 - **🎉 2026-10-24 0135 boot: HTT up, country world (CI run 40109099244, log `research/logs/live-0135.txt`).** HTT
   connect status 0 -> endpoint 1, WMI control now endpoint 2 (max message 2040), `HTT: target version 3.90` (CE1),
   `set country "00"` answered by REG_CHAN_LIST_CC `country "00" id 0 domain 0x60` on both phys (was CN, id 156,
