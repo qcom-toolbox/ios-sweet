@@ -2,6 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0141 data path + DHCP/ARP/ping (built on CI, not yet booted).** Ethernet mode: VDEV_SET_PARAM
+  TX_ENCAP (0x30) / RX_DECAP (0x5b) = 2 after VDEV_CREATE (ath11k add_interface with offload). After the peer map,
+  ath11k_dp_peer_setup: PEER_SET_PARAM DEFAULT_ROUTING (0x13) = 3, REORDER_QUEUE_SETUP (0x6013) for TID 0-16 with
+  REO queue descriptors at window +0x4c0000 (ath11k_hal_reo_qdesc_setup values). TX: TCL data entry (Ethernet,
+  ADDRY, metadata 1, TID overwrite, RBM SW0, cookie msdu id << 2), 16 x 2 KiB buffers at +0x4c8000; completions
+  from WBM2SW0. RX: REO2SW1-4 -> hal_rx_desc_ipq8074 (384 B: done +84, len +96, decap +100, L3 pad +24) -> frame,
+  buffer back into the refill ring. New `bsd/dev/sweet_wlip.c`: DHCP DISCOVER/REQUEST (broadcast flag), ARP for
+  the router (answers ARP for us), 4 pings. Logs `SWEET WLDP: tx done/rx ring ...` (first 6 each), `SWEET WLIP:`
+  steps, `SWEET WLDP: data: ...` totals. Stage 8 codes 62-65 = no DHCP offer / no ACK / no ARP / no echo reply.
 - **🎉 2026-10-24 0140 boot: the phone associates with the user's open 2.4 GHz network (CI run 40123694108, log
   `research/logs/live-0140.txt`, git-ignored).** Every step answered first time: HTT `peer map (type 0x3): vdev 0
   peer id 2`, `vdev 0 start response type 0 status 0`, `mgmt tx 1 done, status 0` (acked), `auth reply: algorithm
