@@ -2,7 +2,18 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0143 data diagnostics (built on CI, not yet booted).** After the join: every management frame
+- **2026-10-24: 0144 unicast receive probe (built on CI, not yet booted).** RXDMA error-destination rings
+  (133/148) counted and first entries dumped raw; IPv4 source/destination of the first received frames logged,
+  and the hotspot's own IP learned from frames whose Ethernet source is the BSSID; then one DHCP DISCOVER to the
+  AP's MAC (not broadcast) and an ARP probe to the learned AP address - a reply is a unicast frame to us.
+- **2026-10-24 0143 boot (CI run 40128607979, log `research/logs/live-0143.txt`).** The test network is an open
+  Xiaomi phone hotspot (Android; hotspot UI shows only MACs; our MAC appears in it). No management frames from the
+  AP after the join (no deauth/disassoc), no WMI events except DIAG. Multicast IPv4 from the AP keeps arriving
+  during DHCP (rx 7 frames total), so RX is not dead - only frames addressed to us are missing. TX completions
+  decoded: FW source word 0x00000a03 = HTT status 5 (bits 12:9) = MEC_NOTIFY (multicast echo check, ath11k ignores
+  it), then TQM source reason 0 = FRAME_ACKED. ARP probes to 5 guessed gateways unanswered (Android 11+ hotspot
+  subnets are random). Encrypt OPEN made no difference. Stage 8 result 62.
+- **2026-10-24: 0143 data diagnostics (CI run 40128607979, `xnu/out-0143`).** After the join: every management frame
   between us and the AP (subtype, reason / action category), all WMI events and HTT messages again (log cap
   reset), raw words of the first TX completions (the FW-source completion has its own status format, not the TQM
   reason), TCL encrypt type OPEN (7) explicitly (0 = WEP_40; ath11k leaves 0 for Ethernet frames), and if DHCP
