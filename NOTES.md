@@ -2,7 +2,7 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0135 HTT connect + version, world regulatory country (built on CI, not yet booted).** ath11k
+- **2026-10-24: 0135 HTT connect + version, world regulatory country (CI run 40109099244, `xnu/out-0135`, not yet booted).** ath11k
   core-start order: after HTC READY connect HTT_DATA_MSG 0x300 (flags 0x8 = no credit flow) before WMI control;
   CE4 source ring added (HTT host->target); after SET_HW_MODE: HTT VERSION_REQ (u32 type 0) on CE4, wait for
   VERSION_CONF on CE1 (major must be 3, as ath11k). Then WMI_SET_CURRENT_COUNTRY 0x3a001 (tag 0x25f, pdev 0)
