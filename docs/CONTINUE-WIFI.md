@@ -45,6 +45,10 @@ firmware's regulatory country is "CN" (Xiaomi default). 0135: HTT connected
 `tools/ath11k-gen-dp.py`); all readbacks match and the firmware keeps working.
 Next: RXDMA rings per MAC with HTT SRING_SETUP, RX buffers, RX filter; then
 association. After each boot, `tools/umi-usbnet.sh` sets up the USB network.
+0137-0139: receive DMA rings + HTT SRING_SETUP, monitor-status filter and reaping.
+0140: the phone associates with an open network named on the boot line
+(`sweetwlanssid=NAME`, `_` = space; keep the name out of git). Next: the data path
+(TCL transmit, REO receive), then DHCP/ping and an IOKit network interface.
 
 ## What to do next
 
