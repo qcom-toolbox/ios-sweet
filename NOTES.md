@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-24: 0134 active scan (built on CI, not yet booted).** Default now active (`sweetwlanscan=0` for the
+  0133 passive scan): channel list without the PASSIVE flag (1-13 are active channels in the EU), START_SCAN with
+  one wildcard SSID (wmi_ssid, length 0) and probe-request IEs Supported Rates + Extended Rates (ie_len 16), from
+  vdev MAC 02:00:5e:77:ee:10. BSS lines now show the channel number (MGMT_RX +0) and MHz derived from it (this
+  firmware leaves chan_freq 0), and beacon vs probe-resp. REG_CHAN_LIST_CC (0x3a001, tag 0x261) logged: country
+  alpha2, country id, domain. The frequent 0x1d011 events are WMI_DIAG_EVENTID (firmware log, enabled by
+  WLAN_INI enablefwlog 1).
 - **🎉 2026-10-24 0133 boot: first Wi-Fi scan - the QCA6390 radio receives (CI run 40101164485, log
   `research/logs/live-0133.txt`, git-ignored; it holds nearby networks' names, keep them out of git).** After
   WMI_READY: SET_HW_MODE response 0x4010, then START_SCAN: `scan event 0x1` (started), BSS_CHANNEL / foreign
