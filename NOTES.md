@@ -2,6 +2,17 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **🎉 2026-10-24: QCA6390 firmware RUNNING under iOS (0123, log `research/logs/live-0123.txt`).** BHI (512 KiB SBL)
+  -> SBL -> MHI READY -> contexts + M0 -> events `state 2` (M0), `ee 1` (SBL) -> BHIe 9 x 512 KiB -> `ee 2`
+  (AMSS / mission mode), MHISTATUS 0x201. The blocker for 0116-0122 was **MSI**: without an enabled MSI
+  capability the PBL reported BHI success, then ERRCODE 0xef0e0003 and never started the SBL. 0123 points
+  the endpoint's MSI (cap 0x50, 32 vectors) at a polled word in the DMA pool - no interrupt controller needed.
+  Also needed on the way: 0118 (pool and monitor windows in kernel_map: arm IO_MAP_SIZE is 8 MiB), 0119 (the
+  modem FAT has random 8.3 names; find amss20.bin by VFAT long name), 0120 (polled MHI host), 0121
+  (ath11k_pci_sw_reset), 0122 (PARF BDF->SID table). Ruled out: pool address (0xa0000000 same error), DMA data.
+  TWRP's cnss2 only probes ("Powerup is ignored"); its ipc log is in `research/logs/twrp-cnss/`.
+  **Next:** MHI channels 20/21 (IPCR) -> QRTR -> WLFW QMI (topaz 0122: cap, BDF bdwlan.e*, M3 m3.bin, mode),
+  then copy engines / HTC / WMI (ath11k), then topaz 0900 Apple80211 for wifid.
 - **Where Wi-Fi stopped (2026-10-23 evening).** 0115 tested: monitor works (`tools/sweet-mon.py`), stage 4 read
   BAR0 = 1 MiB, MHI CHDBOFF 0x300 ERDBOFF 0x700 BHIOFF 0x100 BHIEOFF 0x224, BHI execenv 0 (PBL waiting), serial
   0x2f180788 (log `research/logs/live-0115.txt`). **0116 (built, not yet booted):** stage 5 BHI (first 512 KiB of
