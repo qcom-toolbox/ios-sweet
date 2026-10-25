@@ -16,7 +16,16 @@
     and the GPLL0 GPU taps not voted, gpucc ahb / cxo running, cx_gmu enabled-but-halted: clean, unpowered.
   - **0161:** steps 4 (CX GDSC on), 5 (GPLL0 div vote, GCC GPU bus clocks, GMU clock 200 MHz, gpucc cxo / ahb /
     cx_gmu / smmu vote), 6 (GMU reads: sysreset, fw init result, always-on counter counting?). Every write is
-    recorded and undone in reverse order at the end of the run.
+    recorded and undone in reverse order at the end of the run. **Boot `umi-0161-gpu6.img` (log
+    `research/logs/umi-0161-gpu6.txt`): THE GPU BLOCK IS ALIVE, no hypervisor objection.** cx_gdscr 0x222001 ->
+    0xf8222000 (CX on, cx_hw_ctrl 0x80001fe0); ddrss_gpu_axi 0x80100000 -> 0x100001; gmu_clk_src 0x602 took
+    (update bit cleared); cxo / ahb / cx_gmu (0x4221) / smmu vote running. GMU: cm3_sysreset 1 (held), fw init 0,
+    always-on counter counts, sptprac 0xc0 (GX no power / no clock), rpmh_power_state 0xf, hfi 0, fence 0. All 7
+    writes put back, CX collapsed again.
+  - **0162:** steps 7 (RSCC 0x3de0000 reads), 8 (SMMU ID / stream table / CBAR, pages mapped from the ID
+    registers since umi's dt gives the SMMU only 0x10000), 9 (SMMU context 0), 10 (GMU DTCM two-word write /
+    read-back, undone), 11 (TrustZone: is_call_available, PAS init / auth available, PAS is_supported for audio 1,
+    modem 4, video 9, GPU 13).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
