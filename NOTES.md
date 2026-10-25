@@ -2,7 +2,12 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-25: 0150 BSD interface wl0 (CI).** New `bsd/dev/sweet_wlif.c`, modelled on ue0 in sweet_usb.c: ifnet
+- **2026-10-25 0150 boot: wl0 works - DNS over a kernel socket through the BSD stack.** (`research/logs/live-0150.txt`.)
+  DHCP lease + 4/4 pings as in 0149, then "wl0 <lease>/24 up", DNS A query for apple.com to the router: reply 43
+  bytes, rcode 0, 1 answer (ARP, IP, UDP all through wl0). Stage 8 result 0. Poll thread keeps running: a minute
+  later "wl0 rx 13 tx 11 frames, 0 tx dropped", no panic. Next: default route via the router (internet), lease
+  renewal, then hand the interface to configd / the Apple80211 layer for wifid.
+- **2026-10-25: 0150 BSD interface wl0 (CI, booted - works).** New `bsd/dev/sweet_wlif.c`, modelled on ue0 in sweet_usb.c: ifnet
   "wl0" (Ethernet family, legacy model), output copies the mbuf into a flat frame for sweet_wldp_tx, received
   frames go to ifnet_input; address/mask from the sweet_wlip DHCP lease (no renewal, no default route yet). After
   the join a kernel thread runs htc_poll every 2 ms under the mutex transmit takes. Check: a DNS A query to the
