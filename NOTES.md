@@ -43,6 +43,11 @@
     0x10004000); log 0x60001000 (16K), HFI 0x60005000 (16K); SMMU context 1, match 1, stream 5 (dt gmu iommus
     5/0x400; GPU 0/0x401, secure 2, GMU user 4). GMU chip ID 0x06050200, fence range 0xa/0xa0 (a660: 0x8a0),
     rpmh_start (RSCC_CONTROL_REQ bit 1) before the firmware; started = init result & 0x1ff == 0x100 (fw > 0x20010004).
+    **Boot `umi-0164-gpu15.img` (log `research/logs/umi-0164-gpu15.txt`): THE GMU'S FIRMWARE RUNS.** The hypervisor
+    took the SMMU writes (smr1 0x84000005, s2cr1 1, cbar1 0x1f300, cb1 sctlr 0x27, ttbr0 ours, tcr 0x803519, sgfsr 0).
+    Firmware loaded and verified (versions 0x20010008 / 0x20010008 / HFI 0x20000001); fw_init_result 0x100,
+    hfi_ctrl_status 1, the GMU writes its log through the SMMU (log head 0x21 0x3a05056a 0x1 ...). RSCC_CONTROL_ACK
+    stayed 0 after the wake request (rsc status0 was 0 before): look at it in step 16. 48 writes undone.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
