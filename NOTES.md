@@ -2,7 +2,14 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-25: 0154 Wi-Fi IOKit entries published at boot + one MAC (CI).** Persistent log of the
+- **2026-10-25 0154 boot (`research/logs/live-0154.txt`, sweetiolog=wifid):** entries published at boot (en0 later
+  says "already published"), new MAC got a new lease, en0 + HTTP fine. wifid's trace is unchanged: the
+  IO80211InterfaceRole notification is registered (our object exists by then) but wifid never opens or ioctls.
+  IO80211.framework `__Apple80211ServiceMatchedCallback` (0x1d3ed577c) only calls `__Apple80211IOUCResume` for an
+  already bound handle, so that notification is not how wifid finds a device; wifid never even matches
+  IO80211Controller (MobileWiFi references it) - it stops earlier. Next: `sweetsample=wifid` stacks.
+  Also seen: SIOCGIFDEVMTU ('i' 68) on en0, unhandled; driverkitd SIGKILL once (unrelated?).
+- **2026-10-25: 0154 Wi-Fi IOKit entries published at boot + one MAC (CI, booted - see above).** Persistent log of the
   `sweetiolog=wifid` boot (pulled read-only from TWRP: `tools/sweet-log-pull.sh`; on macOS replace `stat -c %s` with
   `stat -f %z`; `research/logs/pull-0153i.txt`) shows wifid at launch registering `IOServiceMatched` + `IOServiceTerminate`
   for `IOPropertyMatch {IO80211InterfaceRole = Infrastructure}`, `IONameMatch wlan` (finds the ADT node), ApplePPM
