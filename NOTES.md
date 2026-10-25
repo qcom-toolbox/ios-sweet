@@ -2,7 +2,17 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-25: 0148 monitor-status frame detail (CI).** Monitor filter now ath11k's MON_STATUS_RING TLV set
+- **2026-10-25: 0149 DHCP asks for a unicast reply (CI).** Broadcast flag cleared in DISCOVER/REQUEST, so the
+  server sends OFFER/ACK to our MAC (RFC 2131 4.1); unicast receive works since 0147. Works around the broadcast
+  loss below; the loss itself (also IPv6 multicast, so no IPv6 ND) is still open.
+- **2026-10-25 0148 boot: broadcasts are decoded, then lost before any host ring.** (`research/logs/live-0148.txt`.)
+  Monitor status saw every frame from the AP with FCS ok: 8 broadcasts (our DISCOVER echoes + the OFFERs, seq
+  597-602), 2 IPv4 mcast, 2 IPv6 mcast. REO delivered exactly the IPv4 multicast ones (seq 594, 596 seen and
+  delivered; IPv6 593, 595 not) plus the unicast ARP reply. Live read of the ring pointer words (sweet-mon `r
+  0xd1800000`): only REO2SW2 (id 1) ever moved (8 entries); REO2SW1/3/4, REO exception, rx release all 0. So the
+  broadcast / IPv6-multicast MPDUs are dropped or sent to the firmware between RXPCU and the REO destination rings.
+  ath11k sends no mcast/bcast setup we skip (configure_filter is a no-op; MCAST/BCAST_DATA_RATE are TX).
+- **2026-10-25: 0148 monitor-status frame detail (CI, booted - see above).** Monitor filter now ath11k's MON_STATUS_RING TLV set
   (0x1f01: + PPDU_START, PPDU_END_USER_STATS(_EXT)); for each data frame from the AP the log prints the addr1 class
   (us / bcast / v4-mcast / v6-mcast), seq, REO destination, mcast/directed/AST-miss bits and FCS ok/err counts, with
   a per-class summary after DHCP; REO receive log adds the seq. Question: does MAC 1 decode the broadcasts and IPv6
