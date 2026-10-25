@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25 0154 boot `sweetsample=wifid,locationd` (`research/logs/live-0154l.txt`): locationd is stuck too**
+  (identical stacks 2 min apart, slide 0x39018000, mh 0x1027f8000): t0 main thread in `dispatch_sync_f_slow`
+  (func_1a10a431c, from locationd+0x2f55a4 in a run-loop source); t2 the same synchronous CoreLocation NSXPC call as
+  wifid's (from locationd+0x6ef180); t3 a dispatch worker in locationd's own code (locationd+0xc74f4 <- 0xd7d34 <-
+  0xdadc8 <- 0xf3df4 <- 0x1e2928 <- 0x19601c) blocked in `mach_msg` for a reply. Likely chain: wifid -> locationd ->
+  t3's Mach peer (hardware-backed service?) that never replies. Next: `sweetiolog=locationd`; the locationd binary is
+  not local (needs the 20H392 root fs) for disassembling t3.
 - **2026-10-25 0154 boot with `sweetsample=wifid` (`research/logs/live-0154s.txt`): wifid is blocked on
   CoreLocation.** t0 = main run loop (idle, NSRunLoop run). **t2 stuck in a synchronous NSXPC call**
   (`xpc_connection_send_message_with_reply_sync`) from CoreLocation (func_191d969f0 / func_191d95614 /
