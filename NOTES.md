@@ -2,6 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25: root of the wifid hang = fairplayd.** locationd (extracted to `research/ipsw-fs/20H392__iPhone10,3_6/`
+  with `ipsw extract --remote --files`) t3 frame locationd+0xc74f4 is a MIG client stub (`func_1000c7474`: mig reply
+  port, msgh_id **1203**, send 0x18 / reply 0x3c bytes, MIG_SERVER_DIED handled), called through a function-pointer
+  table from heavily obfuscated code (func_1000d77c0, flattened control flow) - FairPlay style; locationd embeds the
+  "Apple FairPlay AAA Certification Authority" certificate and `FairPlayHWInfo`. fairplayd.H2 is exec'd **59 times**
+  in this boot (crash/exit loop, never analysed; no CRASH line, so it exits rather than faulting). An on-demand
+  port keeps the request queued while each instance dies, so locationd waits forever, and wifid's synchronous
+  CoreLocation call waits on locationd. Chain: **wifid -> locationd -> fairplayd**. Next: why fairplayd.H2 exits
+  (`sweetiolog=fairplayd.H2`, maybe an exit-status log).
 - **2026-10-25 0154 boot `sweetiolog=locationd` (persistent log `research/logs/pull-0154t.txt`):** locationd's IOKit
   use is harmless - IONameMatch pressure / name gyro / AppleBaseband (none, handled), IOPMPowerSource (SweetBattery),
   AppleHIDKeyboardEventDriverV2 / IOAccessoryIDBusHIDDevice notifications, IOPMrootDomain + AppleKeyStore opens. No
