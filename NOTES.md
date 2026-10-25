@@ -2,7 +2,24 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-24: 0146 give the firmware a MAC (built on CI, not yet booted).** Hypothesis: hardware-built data
+- **2026-10-25: 0147 mac buf rings 256 (built on CI, not yet booted).** ath11k posts 4096 refill buffers so the
+  firmware can stock both 1024-entry mac buf rings; we post 1023, and the firmware gave all of them to MAC 0's ring
+  (129) - MAC 1's ring (144), the 2.4 GHz radio in DBS mode (monitor status ring 1 is the busy one), stayed empty.
+  Now 256 entries each, so both MACs get buffers from 1023; per-ring fill printed after DHCP.
+- **2026-10-25 0146 boot + Wi-Fi capture: the AP answers, unicast RX is what fails.** (logs
+  `research/logs/live-0146b.txt`, capture `research/sniff/0146b-ch1.pcap` from the Mac's Wireless Diagnostics
+  sniffer on channel 1, both git-ignored; parser in the session scratch `sniff.py`.) QMI MAC_ADDR result 0 - no
+  change. Over the air our data frames are correct (ToDS, A1 AP, A2 our MAC, SNAP, DHCP/ARP), the AP acks them and
+  re-broadcasts our DISCOVERs, and it **sends unicast ARP replies to us** (FromDS, A1 = our MAC) which our hardware
+  ACKs (no retries) but which never reach REO; the AP's null frames every 11 s are acked too. REO queue descriptors
+  read back untouched (all counters 0). Ring dump: refill empty (tp = hp), mac buf ring 129 full of our buffers,
+  ring 144 empty -> MAC 1 has nothing to DMA into. Earlier attempts (PS off, encrypt OPEN, native WiFi TX, MAC
+  address) were not the cause.
+- **Work tree warning (2026-10-25):** macOS's temp cleanup (03:36) pruned `$TMPDIR/sweetwork` (t-sweet lost .git,
+  xcc.py, apply.sh, run.log gone). The patch series in `xnu/patches/` is the source of truth; 0147 was made by
+  re-applying the series' hunks for the two files. Move the work tree out of `$TMPDIR` before relying on it again.
+  Also: Homebrew upgraded llvm to 23 while lld stayed 22 (ld.lld crashed, shim build failed); `brew upgrade lld`.
+- **2026-10-24: 0146 give the firmware a MAC (CI run 40131477014, `xnu/out-0146`).** Hypothesis: hardware-built data
   frames carry the firmware's own (zero, OTP empty) MAC as transmitter address, so the AP acks them (RA matches)
   but drops them as from an unknown station; auth/assoc worked because WMI mgmt TX uses the frame bytes. Sends
   QMI WLFW_MAC_ADDR_REQ 0x33 (TLV 0x10, 6 bytes; from cnss2, not ath11k - refusal only logged) after FW_INIT_DONE,
