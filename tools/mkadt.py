@@ -94,8 +94,8 @@ def build(seed=None, qemu=False, highmem=False, board='sweet'):
         ('dram-size', u64(mem_size)),
         ('random-seed', seed),
         ('debug-enabled', u32(1)),
-        ('firmware-version', cstr('sweet-shim')),
-        ('system-firmware-version', cstr('sweet-shim')),
+        ('firmware-version', cstr(f'{board}-shim')),
+        ('system-firmware-version', cstr(f'{board}-shim')),
         # iBoot's SHA-384 of the boot manifest; /sbin/mount -P 1 exits unless
         # it exists (bind mounts /private/preboot/<hex>/usr/standalone/firmware,
         # tolerating a missing directory). Fixed stand-in value.
@@ -244,6 +244,11 @@ def build(seed=None, qemu=False, highmem=False, board='sweet'):
     ])
 
     product_props = d22ap_product()
+    if product_props and board == 'umi':
+        # Settings > General > About "Model Name" is MobileGestalt's marketing
+        # name = /product product-name; ProductType stays iPhone10,3 (root model).
+        names = {'product-name': cstr('Xiaomi Mi 10'), 'product-description': cstr('Xiaomi Mi 10')}
+        product_props = [(k, names.get(k, v)) for k, v in product_props]
     product = [node('product', [ph()] + product_props)] if product_props else []
 
     # Identity of the iPhone X whose userland runs here: compatible[0] is

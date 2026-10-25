@@ -6,7 +6,7 @@
 # and mkbootimg. Extra boot-args are appended, e.g. sweetusb=2 or sweettouch=0.
 set -euo pipefail
 [[ $# -ge 2 ]] || { sed -n '2,6p' "$0"; exit 2; }
-kernel=$(realpath "$1") out=$(realpath -m "$2")
+kernel=$(realpath "$1") out=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
 shift 2
 cd "$(dirname "$0")/.."
 [[ -f dtb/umi/dtb ]] || { echo "missing dtb/umi/dtb" >&2; exit 1; }
