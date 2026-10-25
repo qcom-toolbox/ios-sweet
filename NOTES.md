@@ -2,7 +2,12 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-25: 0149 DHCP asks for a unicast reply (CI).** Broadcast flag cleared in DISCOVER/REQUEST, so the
+- **2026-10-25 0149 boot: first IP traffic over Wi-Fi - DHCP lease, ARP, 4/4 pings.** (`research/logs/live-0149.txt`.)
+  Unicast DHCP OFFER and ACK arrived at once (REO2SW1, 352 bytes), lease from the hotspot, router ARP answered,
+  4 of 4 echo replies (2.4 / 4.7 / 6.9 / 40 ms); stage 8 result 0. Monitor summary: 7 unicast frames from the AP,
+  all delivered; 3 broadcasts and 2 IPv6 multicasts decoded and again not delivered (open issue, see 0148).
+  Next: an IOKit network interface on top of sweet_wldp (so BSD sockets use Wi-Fi), then the Apple80211 layer.
+- **2026-10-25: 0149 DHCP asks for a unicast reply (CI, booted - works).** Broadcast flag cleared in DISCOVER/REQUEST, so the
   server sends OFFER/ACK to our MAC (RFC 2131 4.1); unicast receive works since 0147. Works around the broadcast
   loss below; the loss itself (also IPv6 multicast, so no IPv6 ND) is still open.
 - **2026-10-25 0148 boot: broadcasts are decoded, then lost before any host ring.** (`research/logs/live-0148.txt`.)
