@@ -2,7 +2,11 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-25: 0151 default route + HTTP over wl0 (CI).** rtrequest RTM_ADD 0/0 via the router (RTF_GATEWAY |
+- **2026-10-25 0151 boot: first internet traffic over Wi-Fi.** (`research/logs/live-0151.txt`.) Default route via
+  the router added unscoped (err 0: no other default route existed), DNS answered with an Apple address, kernel TCP
+  connect to it on port 80 succeeded and the reply came back over wl0. The logged status line was cut to "HTTP/1"
+  (the first receive returned only a few bytes; cosmetic - read until CRLF next time). Stage 8 result 0.
+- **2026-10-25: 0151 default route + HTTP over wl0 (CI, booted - works).** rtrequest RTM_ADD 0/0 via the router (RTF_GATEWAY |
   RTF_STATIC); on EEXIST (a default route already there, e.g. ue0) the same route scoped to wl0 (RTF_IFSCOPE) and
   the test sockets bound with IP_BOUND_IF. Then the DNS A answer for apple.com is parsed and a kernel TCP socket
   sends `HEAD / HTTP/1.0` to it on port 80; the status line is logged. Stage 8: 70 no route, 71 no A record,
