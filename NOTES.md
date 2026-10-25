@@ -38,6 +38,11 @@
     SIGNATURE FROM THIS KERNEL** (smc 0x42000201 (13, pa 0x104960000) -> 0, answer 0); pas_shutdown(13) -> 0. ADT with
     the firmware is 116 KB (no shim / payload limit). Next: HackiOS steps 13-17 (GMU SMMU context + page tables,
     a650_gmu.bin into the GMU, GMU start, RPMh / HFI, power the 3D core).
+  - **0164:** steps 13-15 (HackiOS, A650 values from Linux v6.12 a6xx_gmu.c): a650_gmu.bin is the block format
+    (NEEDS blocks 0x4000/0x8000, 0x144000/0x13000, 0x157000/0x9000, kept 0x60000000/0x1000; TCM data at 0x0 and
+    0x10004000); log 0x60001000 (16K), HFI 0x60005000 (16K); SMMU context 1, match 1, stream 5 (dt gmu iommus
+    5/0x400; GPU 0/0x401, secure 2, GMU user 4). GMU chip ID 0x06050200, fence range 0xa/0xa0 (a660: 0x8a0),
+    rpmh_start (RSCC_CONTROL_REQ bit 1) before the firmware; started = init result & 0x1ff == 0x100 (fw > 0x20010004).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
