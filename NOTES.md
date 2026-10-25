@@ -2,6 +2,11 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25: 0151 default route + HTTP over wl0 (CI).** rtrequest RTM_ADD 0/0 via the router (RTF_GATEWAY |
+  RTF_STATIC); on EEXIST (a default route already there, e.g. ue0) the same route scoped to wl0 (RTF_IFSCOPE) and
+  the test sockets bound with IP_BOUND_IF. Then the DNS A answer for apple.com is parsed and a kernel TCP socket
+  sends `HEAD / HTTP/1.0` to it on port 80; the status line is logged. Stage 8: 70 no route, 71 no A record,
+  72 no HTTP reply (66 no DNS reply, as before).
 - **2026-10-25 0150 boot: wl0 works - DNS over a kernel socket through the BSD stack.** (`research/logs/live-0150.txt`.)
   DHCP lease + 4/4 pings as in 0149, then "wl0 <lease>/24 up", DNS A query for apple.com to the router: reply 43
   bytes, rcode 0, 1 answer (ARP, IP, UDP all through wl0). Stage 8 result 0. Poll thread keeps running: a minute
