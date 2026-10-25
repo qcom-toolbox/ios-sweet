@@ -201,7 +201,17 @@ def build(seed=None, qemu=False, highmem=False, board='sweet'):
             ('compatible', cstr('sweet,display')),
             ('canvas-width', u32(1125)),
             ('canvas-height', u32(2436)),
-        ])])
+        ])] + ([
+        # umi Wi-Fi (QCA6390, kernel 0153+ en0): launchd starts wifid only when the
+        # device tree has a "wlan" node (com.apple.wifid _LimitLoadToDeviceTree =
+        # wlan, as the ios-topaz notes say); device_type as on D22AP's
+        # /arm-io/uart4/wlan, MAC = /chosen mac-address-wifi0.
+        node('wlan', [
+            ph(),
+            ('device_type', cstr('wlan')),
+            ('compatible', cstr('wlan-pcie,qca6390') + cstr('wlan-pcie,qcom')),
+            ('local-mac-address', bytes.fromhex('025357454501')),
+        ])] if board == 'umi' else []))
 
     fbcon = node('sweet-fbcon', [
         ph(),

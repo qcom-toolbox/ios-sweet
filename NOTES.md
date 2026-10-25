@@ -2,6 +2,11 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25: umi ADT gets `/arm-io/wlan`** (`tools/mkadt.py`, umi only): device_type "wlan", compatible
+  "wlan-pcie,qca6390", local-mac-address = /chosen mac-address-wifi0 (02:53:57:45:45:01). com.apple.wifid has
+  `_LimitLoadToDeviceTree = wlan` (per ios-topaz's mkadt notes), so launchd should now start wifid. Rebuilt
+  `shim/out/umi.adt` differs from the 2026-10-21 one only by this node, phandle renumbering and the random seed.
+  Note: the kernel's Wi-Fi MAC (vdev, ARP/DHCP) is still 02:00:5e:77:ee:10, not the ADT's wifi0 address.
 - **2026-10-25 0153 boot (with sweetwlanrenew=60): renewal works, en0 published, wifid never starts.**
   (`research/logs/live-0153.txt`.) "IO80211Controller + IONetworkInterface en0 published: 0", en0 up, default route,
   DNS, HTTP "HTTP/1.0 301 Redirect" (full status line now), stage 8 result 0; 60 s later "DHCP renewal REQUEST" ->
