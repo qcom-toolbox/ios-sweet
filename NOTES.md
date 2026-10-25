@@ -2,6 +2,19 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25: 0153 en0 + IOKit entries for configd / wifid (CI).** Own implementation (the user chose not to copy
+  ios-topaz 0900, whose header marks it private). wl0 is renamed en0; new `iokit/Kernel/arm/SweetWLAN.cpp`
+  publishes, under the platform expert, an `IO80211Controller` (IOMACAddress, SelfNamed = true so InterfaceNamer
+  skips naming) with an `IONetworkInterface` child (BSD Name en0, IOInterfaceType 6, prefix en / unit 0,
+  IOBuiltin, IOPrimaryInterface, IO80211InterfaceRole "Infrastructure", IOInterfaceName en0), per configd-1241.80.3
+  SCNetworkInterface.c createInterface/processNetworkInterface. No user client, so IO80211.framework should fall back
+  to SIOCGA80211/SIOCSA80211 ioctls; en0 logs every unhandled ioctl (Apple80211 ones with their request type), none
+  answered yet. The kernel still sets the address itself. Caveat found in prefsmon.c / ifnamer.c: on iOS configd
+  creates services only at first quiet when no configuration exists (per-interface defaults are macOS-only), and the
+  phone's preferences already exist (USB Ethernet service), so en0 probably gets no configd service by itself.
+  **Local compile check restored:** CI buildtree of 0152 at `~/ios-sweet-port/xnu-work/bt` (git repo, outside
+  $TMPDIR), log `xnu-work/run-0152.log`, `xnu-work/xnu-cc-sys.py` = tools/xnu-cc.py with /usr/bin/clang:
+  `python3 xnu-cc-sys.py run-0152.log bt <paths>`; patches = `git format-patch` there.
 - **2026-10-25: 0152 DHCP lease renewal (CI).** sweet_wlip keeps option 51 (lease) and can send a REQUEST in the
   RENEWING state (ciaddr = our address, unicast to the server via the router's MAC, no options 50/54, new xid);
   sweet_wlif's receive path hands DHCP replies (UDP 67->68 to our MAC) to it instead of the stack. The poll thread
