@@ -2,6 +2,25 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25 GPU (Adreno 650) bring-up started, base: HackiOS** (OOSEX GANG, github.com/oosexgang/hakios-os,
+  kernel APSL 2.0 / user space MIT; ios-topaz's GPU work comes from it). `hakios.adreno.c` brings up the Adreno
+  642L (SM7325) whose GPU block has the same layout as umi's (0x3d00000 / GMU 0x3d6a000 / gpucc 0x3d90000 / SMMU
+  0x3da0000); umi chip ID 6.5.0.2, firmware `a650_gmu.bin`, `a650_sqe.fw`, `a650_zap.*` pulled read-only from
+  vendor into `research/gpu-fw/umi/` (not in git). Linux gcc/gpucc-sm8250.c vs sc7280: same GCC GPU clocks and
+  gpucc GDSC / GMU / AHB / CXO / SMMU-vote offsets; SM8250 has no gpucc PLL0 and no hub clocks; GMU 200 MHz =
+  source 6 (GPLL0 div) / 1.5 (same setting).
+  - **0160** (`bsd/dev/sweet_adreno.c`, `sweetgpu=N`, read-only steps 1-3), boot `umi-0160-gpu3.img`, log
+    `research/logs/umi-0160-gpu3.txt`: booted normally. cmd-db `gfx.lvl` 0x30050 (levels 0 48 64 128 144 192 224
+    256 320 384 416), `cx.lvl` 0x30000, `mx.lvl` 0x30010, no `mmcx.lvl`; speed bin 0 (qfprom 0x78419b = 0x10);
+    CX and GX GDSC 0x222001 (collapsed), gcc gpu_cfg_ahb running, memnoc/snoc enabled-but-halted, ddrss_gpu_axi
+    and the GPLL0 GPU taps not voted, gpucc ahb / cxo running, cx_gmu enabled-but-halted: clean, unpowered.
+  - **0161:** steps 4 (CX GDSC on), 5 (GPLL0 div vote, GCC GPU bus clocks, GMU clock 200 MHz, gpucc cxo / ahb /
+    cx_gmu / smmu vote), 6 (GMU reads: sysreset, fw init result, always-on counter counting?). Every write is
+    recorded and undone in reverse order at the end of the run.
+- **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
+  boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
+  Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
+  tests. Note: auto mode refuses `fastboot flash` from Claude; the user runs it.
 - **🎉 2026-10-25 0159: WALLPAPER WORKS (user: "all good").** Cause: no MAC policy named "AMFI", so lsd's
   `__mac_syscall("AMFI", 0x60)` (boot-arg state) failed and it could not read the signed extension catalog ->
   0 extensions, empty Settings > Wallpaper. 0159 (`bsd/kern/sweet_amfi.c`) adds policy "AMFI": op 0x60 answers
