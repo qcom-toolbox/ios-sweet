@@ -2,6 +2,27 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25 0157 boot (`shim/out/umi-0157.img`, persistent log `research/logs/umi-0157.txt`):**
+  - **Settings > About shows "Xiaomi Mi 10"** (user). mkadt: umi `/product` product-name / product-description
+    "Xiaomi Mi 10" (ProductType stays iPhone10,3). It needed `sweetmgreset=1` (0156): the MobileGestalt disk cache
+    is only invalidated by build / host UUID, so the 0154 boot with the new ADT still showed "iPhone X".
+    `SWEET MG: MobileGestalt cache moved aside: 0`.
+  - **Battery (0157, `sweetbattery=2`) reads real values** that match TWRP's Linux (100 %, 4405 mV, taper):
+    `BATT_SOC type 0xd/0x10 soc 255 (100%), BATT_INFO type 0xd/0x11 vbatt 0x8c9a (4393mV) ibatt 0xff86 (18mA),
+    usb 0x10 path 0x95 chg 0x3 err 0x28 temp 0` -> external=1 charging=1. User: status bar 100 % and charging
+    "even when not charging" - unplug not yet seen in a log (0157 only logged mode changes) -> 0158 logs every
+    change and polls every 10 s.
+  - **Wallpaper: none, and Settings > Wallpaper is empty.** Same symptom as Bergamota (ry-diffusion, Poco F1,
+    no licence: ideas only): a LaunchServices database seeded while app extensions failed validation is kept
+    (seeded + complete) and lists none. TWRP has no HFS+, so 0158 `sweetlsreset=1` renames
+    `InternalDaemon/*/Library/Caches/com.apple.LaunchServices*` to `*.sweet-old` from the kernel at launchd start.
+  - 0155 (console): on boards with `xiaomi,umi` the drawn console shows SWEET/sweet/Sweet as UMI/umi/Umi
+    (`sweetrename=0` off); persistent / UDP logs keep SWEET.
+  - Dropped the FairPlayIOKit stand-in (old 0155/0156, in git history): not continuing work that fakes Apple's
+    FairPlay driver. wifid stays blocked behind locationd -> fairplayd.
+  - Forks searched (357 forks of dipa-studio/ios-sweet, all changed branches): no usable SM8250 battery / flash
+    work (Nexo9900 alioth battery guesses registers); Bergamota has real battery (SDM845), wallpaper, A630 GPU
+    bring-up (not working yet). No flashlight anywhere.
 - **2026-10-25 0155 boot (`research/logs/live-0155.txt`):** fairplayd.H2 now finds the stand-in (1 found), opens
   type 0 and calls sel 22 (struct out 4), sel 23 (struct out 4), sel 21 (struct in 552 / out 552); all refused, it
   still exits after sel 21 (23 execs instead of 59). wifid unchanged. **0156:** selectors in boot-arg
