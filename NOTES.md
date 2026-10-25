@@ -48,6 +48,13 @@
     Firmware loaded and verified (versions 0x20010008 / 0x20010008 / HFI 0x20000001); fw_init_result 0x100,
     hfi_ctrl_status 1, the GMU writes its log through the SMMU (log head 0x21 0x3a05056a 0x1 ...). RSCC_CONTROL_ACK
     stayed 0 after the wake request (rsc status0 was 0 before): look at it in step 16. 48 writes undone.
+  - **0165:** step 15 now first does Linux a6xx_gmu_rpmh_init (RSCC program, hidden_tcs_cmd2 0x80000000 for the A650
+    (0x80000021 is a740), PDC gpu_seq_start 0 / gpu_enable 0x80000001 at 0xb294520 / 0xb294500, then rpmh_stop =
+    channel asleep) so that rpmh_start's ack can come. Step 16 hfi_ctrl_init. Step 17 HFI (Linux order): perf table
+    (umi gpu-opp-table_v2: 305 MHz @ 64, 400 @ 128, 490 @ 192; GMU 200 MHz @ 48), A650 bw table (ddr 0x50000 /
+    0x50004 / 0x5007c, cnoc 0x500a4, wait masks 1), core fw start, start, GX_BW_PERF_VOTE (sweetgpuspeed, default
+    305 MHz), then oob GPU_SET (host2gmu bit 30, ack gmu2host bit 31) and the first 3D-core register reads. Once
+    the 3D core is asked for, nothing is undone (HackiOS: collapsing CX under a powered GX hung a phone).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
