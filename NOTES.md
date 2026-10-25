@@ -2,7 +2,12 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-25: 0155 FairPlayIOKit stand-in (CI).** Boot `sweetiolog=fairplayd.H2` (`research/logs/live-0154f.txt`):
+- **2026-10-25 0155 boot (`research/logs/live-0155.txt`):** fairplayd.H2 now finds the stand-in (1 found), opens
+  type 0 and calls sel 22 (struct out 4), sel 23 (struct out 4), sel 21 (struct in 552 / out 552); all refused, it
+  still exits after sel 21 (23 execs instead of 59). wifid unchanged. **0156:** selectors in boot-arg
+  `sweetfairplayok` (u64 bitmask, default all) return success - outputs zeroed, a struct output the size of the
+  struct input gets the input echoed; first 32 bytes of struct inputs logged.
+- **2026-10-25: 0155 FairPlayIOKit stand-in (CI, booted - see above).** Boot `sweetiolog=fairplayd.H2` (`research/logs/live-0154f.txt`):
   every instance does exactly one lookup, `IOProviderClass com_apple_driver_FairPlayIOKit` -> 0 found, and exits;
   its plist (`research/ipsw-fs/.../com.apple.fairplayd.H2.plist`): KeepAlive true, MachServices com.apple.fairplayd,
   com.apple.fairplayd.versioned, com.apple.unfreed (HostSpecialPort 17), user mobile. New
