@@ -2,6 +2,12 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25 0154 boot with `sweetsample=wifid` (`research/logs/live-0154s.txt`): wifid is blocked on
+  CoreLocation.** t0 = main run loop (idle, NSRunLoop run). **t2 stuck in a synchronous NSXPC call**
+  (`xpc_connection_send_message_with_reply_sync`) from CoreLocation (func_191d969f0 / func_191d95614 /
+  func_191dbde88) called by WiFiPolicy `-[WiFiLocationManager createCoreLocationObjects]` - same stack and sp in two
+  samples 2 min apart. locationd is running (exec + AKS calls) but does not answer. Presumably the device setup
+  waits behind it. Next: sample locationd too (`sweetsample=wifid,locationd`) to see what locationd waits on.
 - **2026-10-25 0154 boot (`research/logs/live-0154.txt`, sweetiolog=wifid):** entries published at boot (en0 later
   says "already published"), new MAC got a new lease, en0 + HTTP fine. wifid's trace is unchanged: the
   IO80211InterfaceRole notification is registered (our object exists by then) but wifid never opens or ioctls.
