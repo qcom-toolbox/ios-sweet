@@ -2,6 +2,16 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25: 0154 Wi-Fi IOKit entries published at boot + one MAC (CI).** Persistent log of the
+  `sweetiolog=wifid` boot (pulled read-only from TWRP: `tools/sweet-log-pull.sh`; on macOS replace `stat -c %s` with
+  `stat -f %z`; `research/logs/pull-0153i.txt`) shows wifid at launch registering `IOServiceMatched` + `IOServiceTerminate`
+  for `IOPropertyMatch {IO80211InterfaceRole = Infrastructure}`, `IONameMatch wlan` (finds the ADT node), ApplePPM
+  (none), IOPMPowerSource, IOPMrootDomain open, marconi-bt/bluetooth (none) - and nothing after en0's objects were
+  published ~3 min later (no open, no ioctl). 0154: `sweet_wlan_publish_early()` from AppleCLCD::start (with the
+  IONetworkStack stand-in; only if the ADT has /arm-io/wlan; `sweetwlanearly=0` off), the later call from en0 only
+  logs. The radio (QMI MAC_ADDR, vdev, frames) and en0 now use the ADT's /chosen mac-address-wifi0
+  (`sweet_wlan_mac`), so IOKit, en0 and the air agree; the hotspot will see a new client MAC.
+  The live UDP log loses everything before the Mac's en8 has its address: run umi-usbnet.sh right after the boot.
 - **2026-10-25 boot 0153 + wlan ADT (`research/logs/live-0153w.txt`): wifid now starts** (`exec wifid`, then
   wifianalyticsd, WiFiCloudAssetsXPCService; wifid talks to AppleKeyStore), en0 + HTTP fine as before, but **no
   ioctl reaches en0** within 10 min - wifid apparently does not bind to our IO80211Controller/IONetworkInterface.
