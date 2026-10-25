@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25 boot 0153 + wlan ADT (`research/logs/live-0153w.txt`): wifid now starts** (`exec wifid`, then
+  wifianalyticsd, WiFiCloudAssetsXPCService; wifid talks to AppleKeyStore), en0 + HTTP fine as before, but **no
+  ioctl reaches en0** within 10 min - wifid apparently does not bind to our IO80211Controller/IONetworkInterface.
+  Strings: MobileWiFi / IO80211 / CoreWiFi reference "IO80211Controller", "IO80211InterfaceRole",
+  "IOInterfaceName", CoreWiFi "_publishIO80211SkywalkInterface" (iOS 16 matches IO80211SkywalkInterface?), IO80211
+  "No Matches for IO80211Controller, trying dk matching". Next boot: `sweetiolog=wifid` to see its IOKit lookups.
+  Unrelated: Settings crashed once in PodcastsUI (Swift trap, brk #1 at func_1cdc47c58+336).
 - **2026-10-25: umi ADT gets `/arm-io/wlan`** (`tools/mkadt.py`, umi only): device_type "wlan", compatible
   "wlan-pcie,qca6390", local-mac-address = /chosen mac-address-wifi0 (02:53:57:45:45:01). com.apple.wifid has
   `_LimitLoadToDeviceTree = wlan` (per ios-topaz's mkadt notes), so launchd should now start wifid. Rebuilt
