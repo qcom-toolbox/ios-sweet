@@ -2,7 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-25: 0153 en0 + IOKit entries for configd / wifid (CI).** Own implementation (the user chose not to copy
+- **2026-10-25 0153 boot (with sweetwlanrenew=60): renewal works, en0 published, wifid never starts.**
+  (`research/logs/live-0153.txt`.) "IO80211Controller + IONetworkInterface en0 published: 0", en0 up, default route,
+  DNS, HTTP "HTTP/1.0 301 Redirect" (full status line now), stage 8 result 0; 60 s later "DHCP renewal REQUEST" ->
+  "DHCP ACK (renewal), lease 3599 s", next renewal in 1799 s. **No ioctl at all reached en0** and the exec log shows
+  configd but no `wifid`: launchd does not start it. Next: the `/arm-io/wlan` ADT node (CONTINUE-WIFI "Later"),
+  then see which Apple80211 requests wifid sends.
+- **2026-10-25: 0153 en0 + IOKit entries for configd / wifid (CI, booted - see above).** Own implementation (the user chose not to copy
   ios-topaz 0900, whose header marks it private). wl0 is renamed en0; new `iokit/Kernel/arm/SweetWLAN.cpp`
   publishes, under the platform expert, an `IO80211Controller` (IOMACAddress, SelfNamed = true so InterfaceNamer
   skips naming) with an `IONetworkInterface` child (BSD Name en0, IOInterfaceType 6, prefix en / unit 0,
