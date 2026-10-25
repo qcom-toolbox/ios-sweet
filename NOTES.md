@@ -34,6 +34,10 @@
   - **0163:** step 12, zap signature: `tools/mkadt.py` puts `research/gpu-fw/umi/a650_*` into ADT node
     `/sweet-gpufw` (umi only, no compatible); the kernel copies `a650_zap.mdt` (148-byte ELF header, 3 segments +
     6712 bytes of hashes) into a contiguous page and calls pas_init_image(13); pas_shutdown(13) at the end of the run.
+    **Boot `umi-0163-gpu12.img` (log `research/logs/umi-0163-gpu12.txt`): TRUSTZONE ACCEPTS THE ZAP SHADER'S
+    SIGNATURE FROM THIS KERNEL** (smc 0x42000201 (13, pa 0x104960000) -> 0, answer 0); pas_shutdown(13) -> 0. ADT with
+    the firmware is 116 KB (no shim / payload limit). Next: HackiOS steps 13-17 (GMU SMMU context + page tables,
+    a650_gmu.bin into the GMU, GMU start, RPMh / HFI, power the 3D core).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
