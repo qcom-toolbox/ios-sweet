@@ -55,6 +55,14 @@
     0x50004 / 0x5007c, cnoc 0x500a4, wait masks 1), core fw start, start, GX_BW_PERF_VOTE (sweetgpuspeed, default
     305 MHz), then oob GPU_SET (host2gmu bit 30, ack gmu2host bit 31) and the first 3D-core register reads. Once
     the 3D core is asked for, nothing is undone (HackiOS: collapsing CX under a powered GX hung a phone).
+    **Boot `umi-0165-gpu17.img` (log `research/logs/umi-0165-gpu17.txt`): THE 3D CORE HAS POWER AND ANSWERS.**
+    rpmh_init: rsc_status0 -> 0x1010006 (asleep) after rpmh_stop; PDC gpu_enable_pdc was 0x100 -> 0x80000001; then
+    rpmh_start ack 0x3 (the missing piece in 0164). GMU runs, HFI queues up; GMU accepts perf table (votes gx 0
+    0x400202 0x800203 0xc00305, gmu 0 0x400202), A650 bw table, core fw start, start, GX_BW_PERF_VOTE 305 MHz; oob
+    GPU_SET granted: sptprac 0xc0 -> 0, gx_gdscr 0x222001 -> 0xf8222800; rbbm_status 1, rbbm_int_0_status 0,
+    cp_rb_base 0. Left on (64 writes); phone kept running. Next: HackiOS steps 18-22 (SMMU context 0 for the
+    core, ring + a650_sqe.fw, zap load via PAS, a6xx hw_init for the A650, CP start, leave secure mode, first
+    commands).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
