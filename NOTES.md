@@ -2,6 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **🎉 2026-10-25 0159: WALLPAPER WORKS (user: "all good").** Cause: no MAC policy named "AMFI", so lsd's
+  `__mac_syscall("AMFI", 0x60)` (boot-arg state) failed and it could not read the signed extension catalog ->
+  0 extensions, empty Settings > Wallpaper. 0159 (`bsd/kern/sweet_amfi.c`) adds policy "AMFI": op 0x60 answers
+  boot-arg `sweetamfistate` (default 0x86), other ops ENOPOLICY, first use of each op logged. Needed together with a
+  fresh LaunchServices database (`sweetlsreset=1`, 0158; log `research/logs/umi-0158.txt`: 5 InternalDaemon
+  containers, `com.apple.LaunchServices-4035-v2.csstore` moved aside). Drop `sweetlsreset` / `sweetmgreset` from
+  normal boots (one-shot fixes).
+  - Battery (0158 log): follows unplug / replug: `99% 4304mV -186mA external=0 charging=0` then `external=1
+    charging=1`; user: "battery is all good".
 - **2026-10-25 0157 boot (`shim/out/umi-0157.img`, persistent log `research/logs/umi-0157.txt`):**
   - **Settings > About shows "Xiaomi Mi 10"** (user). mkadt: umi `/product` product-name / product-description
     "Xiaomi Mi 10" (ProductType stays iPhone10,3). It needed `sweetmgreset=1` (0156): the MobileGestalt disk cache
