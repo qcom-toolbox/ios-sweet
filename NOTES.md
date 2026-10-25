@@ -2,6 +2,15 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25: 0155 FairPlayIOKit stand-in (CI).** Boot `sweetiolog=fairplayd.H2` (`research/logs/live-0154f.txt`):
+  every instance does exactly one lookup, `IOProviderClass com_apple_driver_FairPlayIOKit` -> 0 found, and exits;
+  its plist (`research/ipsw-fs/.../com.apple.fairplayd.H2.plist`): KeepAlive true, MachServices com.apple.fairplayd,
+  com.apple.fairplayd.versioned, com.apple.unfreed (HostSpecialPort 17), user mobile. New
+  `iokit/Kernel/arm/SweetFairPlay.cpp`: a `com_apple_driver_FairPlayIOKit` service published at boot from
+  AppleCLCD::start (boot-arg `sweetfairplay=0` off) with user client `SweetFairPlayUserClient` that logs the opener
+  and every external method (`SWEET FAIRPLAY: <proc> sel N scalars in/out, struct in/out`, first 200) and returns
+  kIOReturnUnsupported. Aim: fairplayd stays up and answers (with errors), locationd and then wifid unblock; the
+  log shows which FairPlay calls matter.
 - **2026-10-25: root of the wifid hang = fairplayd.** locationd (extracted to `research/ipsw-fs/20H392__iPhone10,3_6/`
   with `ipsw extract --remote --files`) t3 frame locationd+0xc74f4 is a MIG client stub (`func_1000c7474`: mig reply
   port, msgh_id **1203**, send 0x18 / reply 0x3c bytes, MIG_SERVER_DIED handled), called through a function-pointer

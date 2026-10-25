@@ -1,0 +1,168 @@
+From fd3d3fd7c36757b21e0bf939d1e11e9bdf9fe09a Mon Sep 17 00:00:00 2001
+From: port <p@p>
+Date: Sun, 25 Oct 2026 15:20:10 +0100
+Subject: [PATCH] umi-0155
+
+---
+ .DS_Store                             | Bin 0 -> 6148 bytes
+ iokit/Kernel/arm/SweetFairPlay.cpp    |  97 ++++++++++++++++++++++++++
+ iokit/Kernel/arm/SweetFramebuffer.cpp |   2 +
+ iokit/conf/files.arm64                |   1 +
+ 4 files changed, 100 insertions(+)
+ create mode 100644 .DS_Store
+ create mode 100644 iokit/Kernel/arm/SweetFairPlay.cpp
+
+diff --git a/.DS_Store b/.DS_Store
+new file mode 100644
+index 0000000000000000000000000000000000000000..d27b401a90c4f74d599f08b1f1e4da5de145e315
+GIT binary patch
+literal 6148
+zcmeHKO-lnY5S?i&6h!IKV?fb!PkLO-idUh3K-QvyUA7?J^Yi>U9zFVAGHMnVFM=qY
+zf#fCgx%*&~9TCyR(`qg<6OkzfQMnipss~LYbEZ+5W4^rU+6}d%!2t9BOTgzGOCyi6
+zTHlq=e{}L`X}h{^)?EV){g3x9pU+F{>Kp6kzQ|f%Axw6pL%myR<)N&p`)99xYrk$h
+zw7Nxn+m*G4Jj(id`oj7y&VV!E3^)VZ%>eFf%5*oQ&(44|;0$~)!1Ezs5G%u&F&!P4
+zQVRf_K%E3@_7aQ<hLvH=2n$4WC@_brwHTVip%3O)8ODq`T-2HmwaV|!i>B(xACkLh
+zmC<Ksz!~T>FwWZ<@Ba&YGXJG#@4toboB?OxCk*JMUe*g_u)Fn3F5a~P;~IlPzsLmy
+m>)uZQHatfTk}=x@*YK+hV@777K7|AQM<5a6lQZxO47>qP8a)R9
+
+literal 0
+HcmV?d00001
+
+diff --git a/iokit/Kernel/arm/SweetFairPlay.cpp b/iokit/Kernel/arm/SweetFairPlay.cpp
+new file mode 100644
+index 0000000..7f03077
+--- /dev/null
++++ b/iokit/Kernel/arm/SweetFairPlay.cpp
+@@ -0,0 +1,97 @@
++/*
++ * umi/sweet: a stand-in for com.apple.driver.FairPlayIOKit.
++ *
++ * fairplayd.H2 (launchd KeepAlive, MachServices com.apple.fairplayd, .versioned and
++ * com.apple.unfreed = host special port 17) looks up IOProviderClass
++ * "com_apple_driver_FairPlayIOKit" at launch and exits when there is none, so launchd
++ * restarts it forever (59 times in one 0154 boot). Requests to its ports then stay queued
++ * with launchd: locationd blocks in a FairPlay MIG call (msgh_id 1203) and wifid in a
++ * synchronous CoreLocation call behind it, so wifid never sets up a Wi-Fi device.
++ *
++ * This service has the class name fairplayd matches and a user client that opens; every
++ * external method is logged (first 200: selector, scalar / struct sizes) and refused with
++ * kIOReturnUnsupported. No FairPlay function is provided: the point is that fairplayd stays
++ * up and answers (with errors), and the log shows what it asks the driver for.
++ * Published at boot from AppleCLCD::start; boot-arg sweetfairplay=0 off.
++ */
++#include <pexpert/arm64/board_config.h>
++
++#if defined(SWEET)
++#include <IOKit/IOLib.h>
++#include <IOKit/IOService.h>
++#include <IOKit/IOUserClient.h>
++#include <IOKit/IOKitKeys.h>
++#include <IOKit/IOPlatformExpert.h>
++#include <pexpert/pexpert.h>
++#include <kern/task.h>
++#include <sys/proc.h>
++
++class com_apple_driver_FairPlayIOKit : public IOService {
++	OSDeclareDefaultStructors(com_apple_driver_FairPlayIOKit);
++};
++
++OSDefineMetaClassAndStructors(com_apple_driver_FairPlayIOKit, IOService);
++
++static uint32_t sweet_fp_logged;
++
++class SweetFairPlayUserClient : public IOUserClient {
++	OSDeclareDefaultStructors(SweetFairPlayUserClient);
++	char fName[32];
++public:
++	bool initWithTask(task_t owningTask, void *securityID, UInt32 type, OSDictionary *properties) APPLE_KEXT_OVERRIDE
++	{
++		if (!IOUserClient::initWithTask(owningTask, securityID, type, properties)) {
++			return false;
++		}
++		proc_t p = (proc_t)get_bsdtask_info(owningTask);
++		strlcpy(fName, "?", sizeof(fName));
++		if (p != NULL) {
++			proc_name(proc_pid(p), fName, sizeof(fName));
++		}
++		IOLog("SWEET FAIRPLAY: %s opened the user client (type %u)\n", fName, (unsigned)type);
++		return true;
++	}
++	IOReturn clientClose(void) APPLE_KEXT_OVERRIDE
++	{
++		terminate();
++		return kIOReturnSuccess;
++	}
++	IOReturn externalMethod(uint32_t selector, IOExternalMethodArguments *a, IOExternalMethodDispatch *dispatch,
++	    OSObject *target, void *reference) APPLE_KEXT_OVERRIDE
++	{
++		(void)dispatch;
++		(void)target;
++		(void)reference;
++		if (sweet_fp_logged++ < 200) {
++			IOLog("SWEET FAIRPLAY: %s sel %u scalars in %u out %u, struct in %u out %u%s\n", fName, selector,
++			    a->scalarInputCount, a->scalarOutputCount, a->structureInputSize, a->structureOutputSize,
++			    a->structureInputDescriptor || a->structureOutputDescriptor ? " (descriptor)" : "");
++		}
++		return kIOReturnUnsupported;
++	}
++};
++
++OSDefineMetaClassAndStructors(SweetFairPlayUserClient, IOUserClient);
++
++extern "C" void
++sweet_fairplay_publish(IOService *parent)
++{
++	uint32_t on = 1;
++	(void)PE_parse_boot_argn("sweetfairplay", &on, sizeof(on));
++	if (!on || parent == NULL) {
++		return;
++	}
++	com_apple_driver_FairPlayIOKit *fp = OSTypeAlloc(com_apple_driver_FairPlayIOKit);
++	if (fp != NULL && fp->init()) {
++		fp->setProperty(kIOUserClientClassKey, "SweetFairPlayUserClient");
++		if (fp->attach(parent)) {
++			fp->registerService();
++			IOLog("SWEET FAIRPLAY: com_apple_driver_FairPlayIOKit stand-in published\n");
++		}
++	}
++	OSSafeReleaseNULL(fp);
++}
++#else
++class IOService;
++extern "C" void sweet_fairplay_publish(IOService *) {}
++#endif
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+index 66d6e72..56cca43 100644
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -172,6 +172,7 @@ OSDefineMetaClassAndStructors(IOAcceleratorES, IOService);
+  * which there are none. It must exist before configd starts (it checks once, at launch).
+  */
+ extern "C" void sweet_wlan_publish_early(void);
++extern "C" void sweet_fairplay_publish(IOService *parent);
+ 
+ class IONetworkStack : public IOService {
+ 	OSDeclareDefaultStructors(IONetworkStack);
+@@ -301,6 +302,7 @@ AppleCLCD::start(IOService *provider)
+ 	}
+ 	OSSafeReleaseNULL(stack);
+ 	sweet_wlan_publish_early();             /* 0154: Wi-Fi registry entries before wifid starts */
++	sweet_fairplay_publish(this);           /* 0155: FairPlayIOKit stand-in, so fairplayd.H2 stays up */
+ 	IOLog("SWEET FB: AppleCLCD %ux%u stride %u at 0x%llx, default surface %u, presented as %ux%u\n",
+ 	    fWidth, fHeight, fRowBytes, fPhys, fSurface->id, fLogicalW, fLogicalH);
+ 	return true;
+diff --git a/iokit/conf/files.arm64 b/iokit/conf/files.arm64
+index aabe7dc..0e7a158 100644
+--- a/iokit/conf/files.arm64
++++ b/iokit/conf/files.arm64
+@@ -18,6 +18,7 @@ iokit/Kernel/arm/SweetFramebuffer.cpp                            optional iokitc
+ iokit/Kernel/arm/SweetBattery.cpp                                optional iokitcpp
+ iokit/Kernel/arm/SweetBusy.cpp                                   optional iokitcpp
+ iokit/Kernel/arm/SweetWLAN.cpp                                   optional iokitcpp
++iokit/Kernel/arm/SweetFairPlay.cpp                               optional iokitcpp
+ iokit/Kernel/arm/hid/SweetHID.cpp                                optional iokitcpp
+ iokit/Kernel/arm/hid/IOHIDEvent.cpp                              optional iokitcpp
+ iokit/Kernel/arm/hid/IOHIDEventServiceQueue.cpp                  optional iokitcpp
+-- 
+2.54.0 (Apple Git-157)
+
