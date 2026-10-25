@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25: 0150 BSD interface wl0 (CI).** New `bsd/dev/sweet_wlif.c`, modelled on ue0 in sweet_usb.c: ifnet
+  "wl0" (Ethernet family, legacy model), output copies the mbuf into a flat frame for sweet_wldp_tx, received
+  frames go to ifnet_input; address/mask from the sweet_wlip DHCP lease (no renewal, no default route yet). After
+  the join a kernel thread runs htc_poll every 2 ms under the mutex transmit takes. Check: a DNS A query to the
+  router over a kernel UDP socket (stage 8 result 66 = no reply, 67-69 = interface create/attach/address failed).
+  Note: `$TMPDIR/sweetwork/t-sweet` is now almost empty (17 .c files left); patches were made from the session's
+  scratch rebuild repo, without a local compile.
 - **2026-10-25 0149 boot: first IP traffic over Wi-Fi - DHCP lease, ARP, 4/4 pings.** (`research/logs/live-0149.txt`.)
   Unicast DHCP OFFER and ACK arrived at once (REO2SW1, 352 bytes), lease from the hotspot, router ARP answered,
   4 of 4 echo replies (2.4 / 4.7 / 6.9 / 40 ms); stage 8 result 0. Monitor summary: 7 unicast frames from the AP,
