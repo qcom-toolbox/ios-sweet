@@ -2,7 +2,20 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
-- **2026-10-25: 0147 mac buf rings 256 (built on CI, not yet booted).** ath11k posts 4096 refill buffers so the
+- **2026-10-25: 0148 monitor-status frame detail (CI).** Monitor filter now ath11k's MON_STATUS_RING TLV set
+  (0x1f01: + PPDU_START, PPDU_END_USER_STATS(_EXT)); for each data frame from the AP the log prints the addr1 class
+  (us / bcast / v4-mcast / v6-mcast), seq, REO destination, mcast/directed/AST-miss bits and FCS ok/err counts, with
+  a per-class summary after DHCP; REO receive log adds the seq. Question: does MAC 1 decode the broadcasts and IPv6
+  multicast and lose them downstream (REO / firmware), or are they never accepted?
+- **2026-10-25 0147 boot: unicast receive works, broadcast never arrives.** (`research/logs/live-0147.txt`.) Both mac
+  buf rings stocked (255/255 after the scan), and the AP's unicast ARP reply reached REO ("ARP to the AP answered");
+  DHCP still got no OFFER. Re-reading the 0146 capture: the AP **did** send a broadcast OFFER ~9 ms after each
+  DISCOVER (FromDS, A1 ff:ff:ff:ff:ff:ff, 1 Mb/s, not protected), and our DISCOVERs are valid (IP checksum ok, UDP
+  checksum 0, broadcast flag, client id). Across every boot 0140-0147 REO has delivered only IPv4 multicast
+  (01:00:5e mDNS) and one unicast ARP - never a broadcast frame and never IPv6 multicast (33:33), although the AP
+  sends IPv6 mDNS each time just before the IPv4 copy (consecutive sequence numbers). REO queue setup and hash
+  routing match ath11k bit for bit.
+- **2026-10-25: 0147 mac buf rings 256 (built on CI, booted - see above).** ath11k posts 4096 refill buffers so the
   firmware can stock both 1024-entry mac buf rings; we post 1023, and the firmware gave all of them to MAC 0's ring
   (129) - MAC 1's ring (144), the 2.4 GHz radio in DBS mode (monitor status ring 1 is the busy one), stayed empty.
   Now 256 entries each, so both MACs get buffers from 1023; per-ring fill printed after DHCP.
