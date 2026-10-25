@@ -53,6 +53,7 @@ BOOT_MANIFEST_HASH = hashlib.sha384(b'sweet boot manifest').digest()
 #   tools/remotezip.py URL DeviceTree.d22ap.im4p DIR
 #   ipsw img4 im4p extract DIR/Firmware/all_flash/DeviceTree.d22ap.im4p -o d22ap.adt
 D22AP_ADT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../research/ipsw-x/d22ap.adt')
+GPU_FW_UMI = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../research/gpu-fw/umi')
 
 
 def d22ap_product(path=D22AP_ADT):
@@ -213,6 +214,15 @@ def build(seed=None, qemu=False, highmem=False, board='sweet'):
             ('local-mac-address', bytes.fromhex('025357454501')),
         ])] if board == 'umi' else []))
 
+    # umi GPU firmware (xnu bsd/dev/sweet_adreno.c reads it from here): the phone's own
+    # /vendor/firmware/a650_* copied into research/gpu-fw/umi/ (Qualcomm's: never in git).
+    # A node with no compatible, so nothing in iOS matches it.
+    gpufw = []
+    if board == 'umi' and os.path.isdir(GPU_FW_UMI):
+        files = sorted(f for f in os.listdir(GPU_FW_UMI) if f.startswith('a650_'))
+        if files:
+            gpufw = [node('sweet-gpufw', [ph()] + [(f, open(os.path.join(GPU_FW_UMI, f), 'rb').read()) for f in files])]
+
     fbcon = node('sweet-fbcon', [
         ph(),
         ('reg', u64(FB, FB_SIZE)),
@@ -264,7 +274,7 @@ def build(seed=None, qemu=False, highmem=False, board='sweet'):
         ('manufacturer', cstr('Apple Inc.')),
         ('#address-cells', u32(2)),
         ('#size-cells', u32(2)),
-    ], [chosen, defaults, cpus, arm_io, fbcon, buttons] + product + ([] if qemu else [ufs]))
+    ], [chosen, defaults, cpus, arm_io, fbcon, buttons] + product + ([] if qemu else [ufs]) + gpufw)
 
 
 if __name__ == '__main__':

@@ -25,7 +25,15 @@
   - **0162:** steps 7 (RSCC 0x3de0000 reads), 8 (SMMU ID / stream table / CBAR, pages mapped from the ID
     registers since umi's dt gives the SMMU only 0x10000), 9 (SMMU context 0), 10 (GMU DTCM two-word write /
     read-back, undone), 11 (TrustZone: is_call_available, PAS init / auth available, PAS is_supported for audio 1,
-    modem 4, video 9, GPU 13).
+    modem 4, video 9, GPU 13). **Boot `umi-0162-gpu11.img` (log `research/logs/umi-0162-gpu11.txt`): all ran, phone
+    fine.** RSCC readable (status0 0, pdc_slave_id 1, tcs0 status 1). SMMU MMU-500: idr0 0x4c017e06 (6 SMRs), idr1
+    0x20000005 (8 x 4K global pages, 5 contexts, 0x10000 total = dt), scr0 0x220406; SMRs all 0 (invalid), S2CRs /
+    cb0 registers hold power-on garbage, CBARs 0: unprogrammed, ours to set up (HackiOS step 13). **GMU DTCM takes
+    writes.** **TrustZone answers this kernel:** is_call_available 1, pas_init_image / pas_auth_and_reset available;
+    pas_is_supported answers 0 for audio / video / GPU (modem -3145792): uninformative, as HackiOS saw.
+  - **0163:** step 12, zap signature: `tools/mkadt.py` puts `research/gpu-fw/umi/a650_*` into ADT node
+    `/sweet-gpufw` (umi only, no compatible); the kernel copies `a650_zap.mdt` (148-byte ELF header, 3 segments +
+    6712 bytes of hashes) into a contiguous page and calls pas_init_image(13); pas_shutdown(13) at the end of the run.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
