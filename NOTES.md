@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25 0154 boot `sweetiolog=locationd` (persistent log `research/logs/pull-0154t.txt`):** locationd's IOKit
+  use is harmless - IONameMatch pressure / name gyro / AppleBaseband (none, handled), IOPMPowerSource (SweetBattery),
+  AppleHIDKeyboardEventDriverV2 / IOAccessoryIDBusHIDDevice notifications, IOPMrootDomain + AppleKeyStore opens. No
+  sandbox denials, no crash. So t3's mach_msg waits on another daemon, not a driver. Extracting
+  /usr/libexec/locationd from the 20H392 IPSW (`ipsw extract --remote --files`, user OK'd the download) into
+  git-ignored `research/ipsw-fs/` to disassemble locationd+0xc74f4. (The session scratchpad under /private/tmp was
+  wiped as well; tools now live in `xnu-work/` and the repo.)
 - **2026-10-25 0154 boot `sweetsample=wifid,locationd` (`research/logs/live-0154l.txt`): locationd is stuck too**
   (identical stacks 2 min apart, slide 0x39018000, mh 0x1027f8000): t0 main thread in `dispatch_sync_f_slow`
   (func_1a10a431c, from locationd+0x2f55a4 in a run-loop source); t2 the same synchronous CoreLocation NSXPC call as
