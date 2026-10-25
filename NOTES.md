@@ -2,6 +2,12 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-25: 0152 DHCP lease renewal (CI).** sweet_wlip keeps option 51 (lease) and can send a REQUEST in the
+  RENEWING state (ciaddr = our address, unicast to the server via the router's MAC, no options 50/54, new xid);
+  sweet_wlif's receive path hands DHCP replies (UDP 67->68 to our MAC) to it instead of the stack. The poll thread
+  renews at lease/2, then every 60 s until an ACK; boot-arg `sweetwlanrenew=<s>` sets the first renewal sooner (test
+  with 60). HTTP check now reads the status line to its end. (The stub syntax check in the scratchpad had been
+  skipping everything inside `#if defined(ARM64_BOARD_CONFIG_SWEET)`; now run with it defined: wlip/wldp clean.)
 - **2026-10-25 0151 boot: first internet traffic over Wi-Fi.** (`research/logs/live-0151.txt`.) Default route via
   the router added unscoped (err 0: no other default route existed), DNS answered with an Apple address, kernel TCP
   connect to it on port 80 succeeded and the reply came back over wl0. The logged status line was cut to "HTTP/1"
