@@ -69,14 +69,17 @@ every protected register blocked to command streams). Test binaries and tools re
 through the kernel file server (0172: ios-flame 0091 port, TCP 2223 on ue0, `tools/umi-files.py`;
 pushes are synced and survive a reset - proven with a 1 MB file across a reboot).
 
-1. **IOUserClient** (`SweetAdreno`, entitled clients only): GET_PARAM (chip id 0x06050002, gmem
-   1.125 MB, GPU address space), GEM_NEW / GEM_INFO (GPU address, map into the task) / GEM_CLOSE,
-   GEM_SUBMIT (IBs + BO list), WAIT_FENCE. Objects as in step 23: wired pages mapped 4K at a time into
-   context 0 at their own addresses, unmapped + TLBIASID on free; fence as the step-23 CACHE_FLUSH_TS
-   sequence number (polled until interrupts exist).
-2. **User space:** a small test binary (iOS SDK + ldid; the SWEET AMFI policy makes signed root
-   binaries platform binaries) pushed with `tools/umi-files.py`; then Mesa freedreno with a
-   libdrm-msm stand-in.
+1. **First, verify 0173 (SweetAdreno, the msm-uAPI service - written, built, NOT yet verified):**
+   boot `shim/out/umi-0173-gpu23.img`, check the log for "SWEET ADRENO: GPU service published"
+   and steps 21-23 green, then `bash phone/build-gpu-test.sh install` (pushes the ldid-signed
+   test + its LaunchDaemon over the file server), reboot, and GET `/private/var/sweet/gpu-test.log`
+   (expect PASS: the four 0x5eed000n words the IB CP_MEM_WRITEs, read back through the user
+   client). If that passes, user space draws with the GPU.
+2. **Then Mesa freedreno** with a libdrm-msm stand-in on the SweetAdreno selectors (GET_PARAM /
+   GEM_NEW / GEM_INFO / GEM_CLOSE / GEM_SUBMIT / WAIT_FENCE, object memory via
+   IOConnectMapMemory(handle)). Mind: the kernel hands out GPU addresses (userspace does not
+   choose them, unlike msm), fences are 32-bit polled sequence numbers, and there is one queue
+   (the kernel ring).
 
 ## How to work
 

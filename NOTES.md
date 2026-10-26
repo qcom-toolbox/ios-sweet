@@ -177,6 +177,25 @@
     phone without reflashing the root. Note: the 192.168.7.1 alias on the Mac's en8 survives phone re-enumerations, so
     only the first umi-usbnet.sh needs the sudo password; `adb kill-server; adb start-server` fixes TWRP not showing in
     adb. Next: the SweetAdreno IOUserClient (msm DRM uAPI) on top of steps 18-23 + the protect table.
+  - **0173 (2026-10-26, evening): SweetAdreno - the GPU as an IOKit service for user space** (`iokit/Kernel/arm/
+    SweetAdreno.cpp` + a C API exported from `bsd/dev/sweet_adreno.c`, one mutex over ring/table/VA): selectors in the
+    shape of Linux's msm DRM uAPI - GET_PARAM (msm_drm.h MSM_PARAM ids; chip id 0x06050002, gmem 0x120000, VA start
+    0x100000000 / size 0x8000000000-that, max freq 305 MHz, highest bank bit 16, UBWC swizzle 6, macrotile 0),
+    GEM_NEW / GEM_INFO / GEM_CLOSE (step 23's objects: wired kmem pages mapped 4K at a time into context 0, unmapped
+    + TLBIASID on close; clientMemoryForType maps them into the task, so IOConnectMapMemory(type=handle) reaches
+    them), GEM_SUBMIT (step 23's CP_INDIRECT_BUFFER with the CACHE_FLUSH_TS fence, ring-room checked), WAIT_FENCE
+    (polled). Opens are refused until the sweetgpu bring-up has the core running; the 0171 protect table keeps client
+    commands off the registers; this XNU has no clientHasEntitlement, so opens are logged by process name. Published
+    from AppleCLCD::start as IOServiceMatching("SweetAdreno") (`sweetadreno=0` off). CI `40408751046`, boot image
+    `shim/out/umi-0173-gpu23.img` (sweetgpu=23) built and `fastboot boot`ed - **the boot itself was NOT verified
+    tonight (stopping early): the service log line, the self-test and the user-space test are all still to check.**
+    User space prepared but not run: `phone/sweet-gpu-test.c` (iPhoneOS SDK + ldid, `phone/build-gpu-test.sh`):
+    opens SweetAdreno with a 4-minute retry (launchd starts before the GPU steps finish), GET_PARAMs, two GEM_NEWs,
+    builds a CP_MEM_WRITE IB in the mapped command object, GEM_SUBMITs, WAIT_FENCEs, reads the data object back;
+    writes /private/var/sweet/gpu-test.log; `phone/com.sweet.gputest.plist` + `build-gpu-test.sh install` push binary
+    and LaunchDaemon over the file server. **Next session: on the 0173 boot (or a fresh one) `bash
+    phone/build-gpu-test.sh install`, reboot the phone, then GET /private/var/sweet/gpu-test.log (expect PASS, the
+    four 0x5eed000n words) and pull the kernel log (SWEET ADRENO published + opens + steps 21-23 green).**
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
