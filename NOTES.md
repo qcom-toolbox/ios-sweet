@@ -164,6 +164,19 @@
     started from sweet_usb.c; Mac side tools/flame-files.py) - umi already has sweetusb=2. Next: port that file
     server, then the SweetAdreno IOUserClient (msm DRM uAPI: GET_PARAM, GEM_NEW/INFO/CLOSE, GEM_SUBMIT,
     WAIT_FENCE) for Mesa freedreno.
+  - **0172 (2026-10-26): kernel file server over USB Ethernet, ported from ios-flame patch 0091** (`bsd/dev/sweet_files.c`,
+    TCP 2223 on ue0 192.168.7.2; host side `tools/umi-files.py`, Mac 192.168.7.1 via `tools/umi-usbnet.sh`): PUT / GET /
+    MKDIR / LINK / RM / CHMOD on the running root, one request per connection, started from `sweet_usb_gadget_start`
+    (boot-arg `sweetfiles=0` off), with `sweet_vfs_mkdir/symlink/unlink` wrappers in `bsd/vfs/vfs_syscalls.c`. umi has no
+    USB command channel, so unlike flame every request that changes the file system is followed by `sync()` (HFS+ journal
+    flushed), and the reply goes out first. **Boot `shim/out/umi-0172-gpu23.img` (CI `40405804121`, log
+    `research/logs/umi-0172-gpu23.txt`): the server works and pushes survive a reset** - 1 MB random-data PUT, GET back
+    byte-exact; after a reboot into the same image the file was still there byte-exact (the sync path works);
+    mkdir/put/chmod/rm all OK (RM of a directory is EPERM: no RMDIR in the protocol). The GPU self-test stayed green in
+    the same boot (step 22 picture, step 23 IB + fence, "done"). Test binaries for the GPU user client now reach the
+    phone without reflashing the root. Note: the 192.168.7.1 alias on the Mac's en8 survives phone re-enumerations, so
+    only the first umi-usbnet.sh needs the sudo password; `adb kill-server; adb start-server` fixes TWRP not showing in
+    adb. Next: the SweetAdreno IOUserClient (msm DRM uAPI) on top of steps 18-23 + the protect table.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for

@@ -65,20 +65,17 @@ Goal: iOS user space renders with the GPU (Mesa freedreno, later CoreAnimation's
 kernel side mirrors Linux's msm DRM uAPI so Mesa's `drm/msm` backend ports with a thin libdrm stand-in.
 Step 23 (memory objects, CP_INDIRECT_BUFFER submit, CACHE_FLUSH_TS fence) already works and is the
 kernel-side shape of GEM_SUBMIT, and the A650 CP protect table is up (0171: steps 21-23 pass with
-every protected register blocked to command streams).
+every protected register blocked to command streams). Test binaries and tools reach the phone
+through the kernel file server (0172: ios-flame 0091 port, TCP 2223 on ue0, `tools/umi-files.py`;
+pushes are synced and survive a reset - proven with a 1 MB file across a reboot).
 
-1. **File server first (0172): test binaries reach the phone the ios-flame way (user's choice,
-   2026-10-26)** - a kernel file server over USB Ethernet: ios-flame patch 0091 (`bsd/dev/sweet_files.c`:
-   TCP PUT/GET/MKDIR/LINK/RM/CHMOD on the running iOS root, one request per connection, started from
-   sweet_usb.c when the interface comes up; Mac side `tools/flame-files.py` through the bridge).
-   umi already has the USB Ethernet link (`sweetusb=2`, `tools/umi-usbnet.sh`).
-2. **IOUserClient** (`SweetAdreno`, entitled clients only): GET_PARAM (chip id 0x06050002, gmem
+1. **IOUserClient** (`SweetAdreno`, entitled clients only): GET_PARAM (chip id 0x06050002, gmem
    1.125 MB, GPU address space), GEM_NEW / GEM_INFO (GPU address, map into the task) / GEM_CLOSE,
    GEM_SUBMIT (IBs + BO list), WAIT_FENCE. Objects as in step 23: wired pages mapped 4K at a time into
    context 0 at their own addresses, unmapped + TLBIASID on free; fence as the step-23 CACHE_FLUSH_TS
    sequence number (polled until interrupts exist).
-3. **User space:** a small test binary (iOS SDK + ldid; the SWEET AMFI policy makes signed root
-   binaries platform binaries) pushed through the file server; then Mesa freedreno with a
+2. **User space:** a small test binary (iOS SDK + ldid; the SWEET AMFI policy makes signed root
+   binaries platform binaries) pushed with `tools/umi-files.py`; then Mesa freedreno with a
    libdrm-msm stand-in.
 
 ## How to work
