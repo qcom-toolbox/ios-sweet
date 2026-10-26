@@ -3,9 +3,9 @@
 ## Where things stand (2026-10-26)
 
 The Xiaomi Mi 10 (umi, SM8250) runs iOS 16.7 on our XNU port. The Adreno 650 bring-up lives in
-`bsd/dev/sweet_adreno.c` (kernel patches 0160-0168 in `xnu/patches/`). It runs only with boot-arg
-`sweetgpu=N` (steps 1..N). **Steps 1-22 have worked on the phone (0168: the GPU drew on the panel).** Step 23
-(0169) is written but has never run: in the 0169 boot step 22's own check failed first (see below).
+`bsd/dev/sweet_adreno.c` (kernel patches 0160-0170 in `xnu/patches/`). It runs only with boot-arg
+`sweetgpu=N` (steps 1..N). **All steps 1-23 have worked on the phone (0170: step 22's 2D fill and step 23's
+indirect-buffer submission with fence both pass).**
 
 | Steps | Patch | What | Result |
 |---|---|---|---|
@@ -20,9 +20,9 @@ The Xiaomi Mi 10 (umi, SM8250) runs iOS 16.7 on our XNU port. The Adreno 650 bri
 | 20 | 0166 | A650 hw_init, CP_SQE_CNTL 1, CP_ME_INIT | command processor runs |
 | 21 | 0166 | CP_SET_SECURE_MODE 0, CP_MEM_WRITE | 0x600dc0de read back |
 | 22 | 0168 | 2D-engine solid fill (red/green/blue) into the panel framebuffer | seen on the panel, pixels exact |
-| 23 | 0169 | memory objects above 4 GB, CP_INDIRECT_BUFFER submit, CACHE_FLUSH_TS fence | **not run yet** |
+| 23 | 0169-0170 | memory objects above 4 GB, CP_INDIRECT_BUFFER submit, CACHE_FLUSH_TS fence | magenta/yellow/cyan + data words exact, fence signalled |
 
-Logs: `research/logs/umi-016x-gpu*.txt` (`umi-0166-gpu21`, `umi-0167-gpu21`, `umi-0168-gpu22`, `umi-0169-gpu23`).
+Logs: `research/logs/umi-016x-gpu*.txt` (`umi-0167-gpu21`, `umi-0168-gpu22`, `umi-0169-gpu23`, `umi-0170-gpu23`).
 Full history with every value: NOTES.md (umi section, top).
 
 Lessons:
@@ -42,46 +42,40 @@ Writes go through `sa_put()` and are recorded; at the end of a run they are undo
 except once the 3D core has been powered (then everything is left on and TrustZone keeps the zap
 shader; the next restart resets the SoC).
 
-## The open problem (0169 boot): the CPU wrote over the GPU's pixels
+## The solved problem (0169/0170): the CPU wrote over the GPU's pixels
 
-In the 0169 boot (`sweetgpu=23`) step 22's fill ran completely (ring read up to 162, idle), red and
-blue read back right, but the green band read `0xff000000` at left, middle and right of row 1170, so
-step 22 reported failure and step 23 never ran. The value has full alpha, so it is not the display-off
-fade (that halves to 0x7f.. and ends at 0). It is an opaque black pixel written by the CPU after
-`sweet_fb_gpu_begin()` cleaned the framebuffer from the cache, then pushed out to memory (by the
-readback's `dc civac` at the latest). Two writers can do that: the kernel text console (it draws into
-the same framebuffer until the first swap mutes it, `sweet_console_muted`) and `AppleCLCD::present()`'s
-copy path if a frame copy was already running when the hold began. Log line order cannot tell which:
-GPU lines are printf, FB lines IOLog, and their order is not reliable (0168's log even places step 22
-inside a "display off" window, when `sweet_fb_gpu_begin` would have refused). The user was not sure
-what the panel showed; magenta/yellow/cyan cannot have come from this kernel (no step 23 line).
-
-**Fix to do first (0170, `iokit/Kernel/arm/SweetFramebuffer.cpp`):** in `sweet_fb_gpu_begin()`, set the
-hold and clean the cache inside the framebuffer's workloop gate (`fWorkLoop->runAction`, so no
-`present()` runs at the same time), mute the console for the hold (`sweet_console_muted = 1`, put the
-old value back when the hold ends in `vsyncFired`), and skip the power-off fade while held. Then boot
-`sweetgpu=23` and check that both step 22 and step 23 pass. Optional: log a timestamp
-(`mach_absolute_time`) in the GPU and FB lines so their order can be read.
+In the 0169 boot (`sweetgpu=23`) the GPU steps ran before iOS's first frame, and the green band read back
+0xff000000: an opaque black pixel written by the CPU after `sweet_fb_gpu_begin()` cleaned the framebuffer from
+the cache - the kernel text console (drawing until the first swap mutes it) or a `AppleCLCD::present()` frame
+copy racing the hold; printf/IOLog order could not tell which. **0170 fixed it: `sweet_fb_gpu_begin()` now sets
+the hold and cleans the cache inside the framebuffer workloop's gate (`fWorkLoop->runAction`, no present() at
+the same time), mutes the console for the hold (`sweet_console_muted`, put back when the hold ends in
+`vsyncFired`, also display-off), and the power-off fade is skipped while held.** Hold-related GPU and FB lines
+carry `mach_absolute_time()` stamps. The 0170 boot passed all 23 steps (step 22's bands exact again). One
+interplay to remember: backboardd turned the display off ~6 s into a hold, so step 23's `sweet_fb_gpu_begin`
+was refused (it always refused display-off) and it drew anyway; the fade-skip kept the panel on the GPU's
+picture through the "off", so the colours were still shown.
 
 ## What to do next: a kernel GPU service for Mesa (freedreno)
 
 Goal: iOS user space renders with the GPU (Mesa freedreno, later CoreAnimation's GL renderer). The
 kernel side mirrors Linux's msm DRM uAPI so Mesa's `drm/msm` backend ports with a thin libdrm stand-in.
+Step 23 (memory objects, CP_INDIRECT_BUFFER submit, CACHE_FLUSH_TS fence) already works and is the
+kernel-side shape of GEM_SUBMIT.
 
-1. **Step 23 (kernel only, testable now):** GPU memory objects (wired pages mapped 4K at a time into
-   context 0 at a GPU address range of their own, unmapped + TLBIASID on free), command submission as
-   `CP_INDIRECT_BUFFER` (opcode 0x3f: address lo/hi, size in words) from the kernel ring, and a fence:
-   `CP_EVENT_WRITE CACHE_FLUSH_TS` (no TIMESTAMP bit) writing a sequence number to a fence page; wait
-   by polling (no interrupts yet). Self-test: step 22's fill built in a memory object and submitted as an IB.
+1. **A650 CP protect table first (Linux v6.12 a6xx_catalog.c `a650_protect`, applied in a6xx_gpu.c
+   `a6xx_set_cp_protect`):** CP protect is not set up yet (skipped in step 20), so any submitted
+   commands can write GPU registers. Set it up before the first untrusted client can submit, plus
+   `CP_SET_PROTECTED_MODE 0` behaviour as Linux leaves it.
 2. **IOUserClient** (`SweetAdreno`, entitled clients only): GET_PARAM (chip id 0x06050002, gmem
    1.125 MB, GPU address space), GEM_NEW / GEM_INFO (GPU address, map into the task) / GEM_CLOSE,
-   GEM_SUBMIT (IBs + BO list), WAIT_FENCE. Note: CP protect is not set up (skipped in step 20), so a
-   client's commands can write GPU registers; set up `a650_protect` (a6xx_catalog.c) before any
-   untrusted client.
+   GEM_SUBMIT (IBs + BO list), WAIT_FENCE. Objects as in step 23: wired pages mapped 4K at a time into
+   context 0 at their own addresses, unmapped + TLBIASID on free; fence as the step-23 CACHE_FLUSH_TS
+   sequence number (polled until interrupts exist).
 3. **User space:** a small test binary (iOS SDK + ldid; the SWEET AMFI policy makes signed root
    binaries platform binaries) that draws through the user client; then Mesa freedreno with a
    libdrm-msm stand-in. Getting files onto the phone's HFS root needs a new root image (the user
-   flashes it) or a kernel-side copy at boot: decide before step 3.
+   flashes it) or a kernel-side copy at boot: decide before building the user-space side.
 
 ## How to work
 

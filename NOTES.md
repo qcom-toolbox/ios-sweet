@@ -120,6 +120,29 @@
     line at all, so the second set cannot have come from this kernel - unexplained. Fix for 0170: sweet_fb_gpu_begin
     mutes the console for the hold (restored after) and does its work inside the framebuffer's workloop gate (no
     present() copying into the framebuffer at the same time).
+  - **0170 (2026-10-26): the 0169 fix, `iokit/Kernel/arm/SweetFramebuffer.cpp`:** `sweet_fb_gpu_begin()` now sets the
+    hold and cleans the framebuffer from the CPU cache inside the framebuffer workloop's gate (`fWorkLoop->runAction`,
+    so no present() copies at the same time), mutes the kernel text console for the hold (`sweet_console_muted`, old
+    value put back when the hold ends in `vsyncFired`, also when it ends display-off), and the power-off fade (with
+    its copy-over of the last frame) is skipped while held. Hold-related GPU (printf) and FB (IOLog) lines now carry
+    `mach_absolute_time()` stamps so their order can be read from the persistent log (timebase 19.2 MHz).
+    CI `40388809568`, boot `shim/out/umi-0170-gpu23.img` (boot line as 0169, `sweetgpu=23`), log
+    `research/logs/umi-0170-gpu23.txt`. **STEP 23 RAN AND PASSED: ALL 23 STEPS GREEN.** Step 22's bands exact again
+    (rows 390/1170/1950 left/middle/right 0xffff0000 / 0xff00ff00 / 0xff0000ff; hold begins t 1019682728, readbacks
+    t 1019703494..1019704360), so the 0169 failure was indeed a CPU writer (console or present) - stopped by the gate
+    + mute. Step 23: commands object at the core's 0x100000000 (0x10000 bytes, ours 0x17e238000), data at 0x100020000
+    (ours 0x17e418000) - above 4 GB, mapped 4K at a time; 149 words submitted as fence 1 (fence word was 0), fence
+    word 0x1 SIGNALLED (ring read up to 175, status 0x1, no fault/interrupt/protection); the data object reads
+    0x0b0b0001 0x0b0b0002 0x0b0b0003 0x0b0b0004 as written; magenta/yellow/cyan bands exact (0xffff00ff / 0xffffff00 /
+    0xff00ffff); objects freed, TLB sync done. One interplay to remember: backboardd turned the display off ~6 s into
+    step 22's 10 s hold (t 1132608310), so step 23's `sweet_fb_gpu_begin` was refused ("display off: not held") and it
+    drew anyway - the new fade-skip kept the panel on the GPU's picture through the "off", so step 23's colours were
+    on the panel for their 10 s all the same (hold end t 1338604283, "frames again"). iOS kept running. Next
+    (docs/GPU-HANDOFF.md): the kernel GPU service for user space - an IOUserClient mirroring Linux's msm DRM uAPI
+    (GET_PARAM, GEM_NEW / GEM_INFO / GEM_CLOSE, GEM_SUBMIT, WAIT_FENCE) for Mesa freedreno, with the A650 CP protect
+    table (Linux v6.12 a6xx_catalog.c `a650_protect`) set up before any user-space client can submit; how test
+    binaries reach the phone's HFS root (new root image the user flashes, or a kernel-side copy at boot) to be
+    decided before the user-space side.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
