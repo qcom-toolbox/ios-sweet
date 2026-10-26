@@ -4,7 +4,8 @@
 
 The Xiaomi Mi 10 (umi, SM8250) runs iOS 16.7 on our XNU port. The Adreno 650 bring-up lives in
 `bsd/dev/sweet_adreno.c` (kernel patches 0160-0168 in `xnu/patches/`). It runs only with boot-arg
-`sweetgpu=N` (steps 1..N). **All 22 steps work on the phone: the GPU draws on the panel.**
+`sweetgpu=N` (steps 1..N). **Steps 1-22 have worked on the phone (0168: the GPU drew on the panel).** Step 23
+(0169) is written but has never run: in the 0169 boot step 22's own check failed first (see below).
 
 | Steps | Patch | What | Result |
 |---|---|---|---|
@@ -19,8 +20,9 @@ The Xiaomi Mi 10 (umi, SM8250) runs iOS 16.7 on our XNU port. The Adreno 650 bri
 | 20 | 0166 | A650 hw_init, CP_SQE_CNTL 1, CP_ME_INIT | command processor runs |
 | 21 | 0166 | CP_SET_SECURE_MODE 0, CP_MEM_WRITE | 0x600dc0de read back |
 | 22 | 0168 | 2D-engine solid fill (red/green/blue) into the panel framebuffer | seen on the panel, pixels exact |
+| 23 | 0169 | memory objects above 4 GB, CP_INDIRECT_BUFFER submit, CACHE_FLUSH_TS fence | **not run yet** |
 
-Logs: `research/logs/umi-016x-gpu*.txt` (0166-0168: `umi-0166-gpu21`, `umi-0167-gpu21`, `umi-0168-gpu22`).
+Logs: `research/logs/umi-016x-gpu*.txt` (`umi-0166-gpu21`, `umi-0167-gpu21`, `umi-0168-gpu22`, `umi-0169-gpu23`).
 Full history with every value: NOTES.md (umi section, top).
 
 Lessons:
@@ -39,6 +41,27 @@ Every step announces its accesses and waits `sweetgpupause` ms so the persistent
 Writes go through `sa_put()` and are recorded; at the end of a run they are undone in reverse order,
 except once the 3D core has been powered (then everything is left on and TrustZone keeps the zap
 shader; the next restart resets the SoC).
+
+## The open problem (0169 boot): the CPU wrote over the GPU's pixels
+
+In the 0169 boot (`sweetgpu=23`) step 22's fill ran completely (ring read up to 162, idle), red and
+blue read back right, but the green band read `0xff000000` at left, middle and right of row 1170, so
+step 22 reported failure and step 23 never ran. The value has full alpha, so it is not the display-off
+fade (that halves to 0x7f.. and ends at 0). It is an opaque black pixel written by the CPU after
+`sweet_fb_gpu_begin()` cleaned the framebuffer from the cache, then pushed out to memory (by the
+readback's `dc civac` at the latest). Two writers can do that: the kernel text console (it draws into
+the same framebuffer until the first swap mutes it, `sweet_console_muted`) and `AppleCLCD::present()`'s
+copy path if a frame copy was already running when the hold began. Log line order cannot tell which:
+GPU lines are printf, FB lines IOLog, and their order is not reliable (0168's log even places step 22
+inside a "display off" window, when `sweet_fb_gpu_begin` would have refused). The user was not sure
+what the panel showed; magenta/yellow/cyan cannot have come from this kernel (no step 23 line).
+
+**Fix to do first (0170, `iokit/Kernel/arm/SweetFramebuffer.cpp`):** in `sweet_fb_gpu_begin()`, set the
+hold and clean the cache inside the framebuffer's workloop gate (`fWorkLoop->runAction`, so no
+`present()` runs at the same time), mute the console for the hold (`sweet_console_muted = 1`, put the
+old value back when the hold ends in `vsyncFired`), and skip the power-off fade while held. Then boot
+`sweetgpu=23` and check that both step 22 and step 23 pass. Optional: log a timestamp
+(`mach_absolute_time`) in the GPU and FB lines so their order can be read.
 
 ## What to do next: a kernel GPU service for Mesa (freedreno)
 
