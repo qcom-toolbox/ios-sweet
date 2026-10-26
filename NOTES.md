@@ -63,6 +63,19 @@
     cp_rb_base 0. Left on (64 writes); phone kept running. Next: HackiOS steps 18-22 (SMMU context 0 for the
     core, ring + a650_sqe.fw, zap load via PAS, a6xx hw_init for the A650, CP start, leave secure mode, first
     commands).
+  - **0166 (2026-10-26):** steps 18-21 (docs/GPU-HANDOFF.md; A650 values from Linux v6.12): 18 SMMU context 0 for
+    the core (SCTLR + bit 8 HUPCF; ring 32K at 0x1000000, a650_sqe.fw minus 4 bytes read-only at 0x1100000, scratch
+    at 0x1200000; stream 0 via SMR 0, stream 1 via SMR 2, mask 0x400), 19 pas_shutdown + init_image again,
+    pas_mem_setup(13, 0x8681a000, 0x1000), a650_zap.b02 copied there, pas_auth_and_reset, 20 A650 hw_init + CP_SQE_CNTL
+    + CP_ME_INIT, 21 CP_SET_SECURE_MODE 0 + CP_MEM_WRITE 0x600dc0de to scratch. The zap shader is no longer released
+    at the end once the core has power. **Boot `umi-0166-gpu21.img` (log `research/logs/umi-0166-gpu21.txt`): steps
+    1-17 as in 0165 (3D core powered, rbbm_status 1); STEP 18 STOPS: THE HYPERVISOR REFUSES SMR 0.** Context 0 writes
+    went through without a fault (cbar 0x1f300, cba2r 1, tcr 0x803519, ttbr0 ours, tlbsync done, sctlr 0x1127), but
+    smr0 written 0x84000000 (stream 0, mask 0x400) reads back 0. The GMU's smr1 0x84000005 (stream 5, mask 0x400 =
+    exactly dt `<5 0x400>`) was taken, so the hypervisor seems to allow only the dt's own pairs: the GPU's is
+    `<0 0x401>` (gfx3d_user) -> next: one SMR 0x84010000 (stream 0, mask 0x401, covers stream 1 too) instead of two.
+    Steps 19-21 did not run. a650_sqe.fw on this phone is version 0x093 (Linux v6.12 wants >= 0x095 for security
+    fixes; it is the vendor's own and should run). Phone kept running; the run left 64 recorded writes in place.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
