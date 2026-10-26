@@ -89,6 +89,22 @@
     no fault / interrupt / protection; CP_ME_INIT read up to 9, idle. 21: CP_SET_SECURE_MODE 0 read up to 11, idle;
     CP_MEM_WRITE read up to 15; scratch reads 0x600dc0de. a650_sqe.fw 0x093 works. Phone kept running (log goes on
     ~2500 lines). Next (step 22): a 2D-engine solid fill into a buffer shown on the panel.
+  - **0168 (2026-10-26):** step 22 (values: Mesa 24.2 fd6_blitter.cc fd6_clear_surface / emit_setup / fd6_clear_texture
+    flushes, freedreno_devices.py A650, a6xx.xml): the panel's boot framebuffer (0x9c000000, 1080x2340, rows 4320) is
+    mapped at 0x10000000 in the core's context 0 (TLBIASID + sync), and the 2D engine fills red / green / blue bands
+    into it. Rows of 4320 bytes are not a multiple of 64 (2D pitch): the engine is told 2160x1170 with rows of 8640
+    (two panel rows each). RB_CCU_CNTL 0x18000000 (sysmem: colour cache at 3 CCUs x 64K), blit cntl 0x10f03080 (solid,
+    FMT6_8_8_8_8_UNORM, R2D_UNORM8, mask 0xf), SP_2D_DST_FORMAT 0xf180, RB_2D_DST_INFO 0x430 (WXYZ = BGRA),
+    RB_DBG_ECO_CNTL 0x04100000 around CP_BLIT(SCALE); CCU clean/invalidate before, CCU clean + CACHE_FLUSH_TS after.
+    SweetFramebuffer.cpp: `sweet_fb_gpu_begin()` (cleans the boot framebuffer from the CPU caches, holds it on the
+    panel: direct scanout pointed back at it, no frames presented, 60 s at most) / `sweet_fb_gpu_show(ms)` (hold
+    sweetgpuhold ms, default 10000, once drawn) / `sweet_fb_gpu_pixel()`. **Boot `umi-0168-gpu22.img` (log
+    `research/logs/umi-0168-gpu22.txt`): 🎉 A PICTURE DRAWN BY THE GPU IS ON THE PANEL** - user saw red / green / blue
+    bands. Ring read up to 162, idle; read back rows 390 / 1170 / 1950 left, middle, right = 0xffff0000 / 0xff00ff00 /
+    0xff0000ff exactly, first pixel red, last blue; then "the GPU's picture has been shown; frames again", iOS kept
+    running. Event stamps: CCU colour flush and CACHE_FLUSH_TS wrote timestamps, the two CCU depth flushes wrote 0
+    (nothing in the depth cache?). Next: a kernel GPU service for Mesa freedreno in user space (buffer objects in
+    the core's SMMU context, submit = ring IB, fences), then CoreAnimation's GL renderer.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
