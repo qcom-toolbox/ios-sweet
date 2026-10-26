@@ -105,6 +105,21 @@
     running. Event stamps: CCU colour flush and CACHE_FLUSH_TS wrote timestamps, the two CCU depth flushes wrote 0
     (nothing in the depth cache?). Next: a kernel GPU service for Mesa freedreno in user space (buffer objects in
     the core's SMMU context, submit = ring IB, fences), then CoreAnimation's GL renderer.
+  - **0169 (2026-10-26):** step 23: memory objects (kmem_alloc pages mapped 4K at a time into context 0 from
+    0x100000000, unmapped + TLBIASID/TLBSYNC on free), submission as CP_INDIRECT_BUFFER (0x3f) from the ring after CCU
+    invalidates (Linux a6xx_submit), fence = CP_EVENT_WRITE CACHE_FLUSH_TS without TIMESTAMP bit to scratch+0x200,
+    polled. Self-test: magenta/yellow/cyan fill + CP_MEM_WRITE of 4 words into a data object, from an IB.
+    `docs/GPU-HANDOFF.md` updated (state after 0168, plan for the GPU service). CI `40384399954`. **Boot
+    `umi-0169-gpu23.img` (log `research/logs/umi-0169-gpu23.txt`): STEP 22 FAILED ITS CHECK, STEP 23 DID NOT RUN.**
+    Steps 1-21 as before; step 22's fill ran (ring read up to 162, idle) but the green band read back 0xff000000 at
+    left/middle/right (red and blue right) -> "does not hold what the 2D engine was told to draw". Cause (inferred):
+    this time the GPU steps ran before iOS's first frame (`SWEET FB: display on` ~700 lines later), so the kernel
+    text console still drew into the boot framebuffer (it is muted only from the first swap): its dirty CPU cache
+    lines were written back over the GPU's pixels (sweet_fb_gpu_begin's cache clean ran before them). In 0168 the
+    first swap came first. The user reported seeing red/green/blue then magenta/yellow/cyan; the log has no step 23
+    line at all, so the second set cannot have come from this kernel - unexplained. Fix for 0170: sweet_fb_gpu_begin
+    mutes the console for the hold (restored after) and does its work inside the framebuffer's workloop gate (no
+    present() copying into the framebuffer at the same time).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
