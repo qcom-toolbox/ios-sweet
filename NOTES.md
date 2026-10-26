@@ -143,6 +143,27 @@
     table (Linux v6.12 a6xx_catalog.c `a650_protect`) set up before any user-space client can submit; how test
     binaries reach the phone's HFS root (new root image the user flashes, or a kernel-side copy at boot) to be
     decided before the user-space side.
+  - **0171 (2026-10-26): A650 CP protect table in step 20**, applied where Linux's a6xx_hw_init calls
+    a6xx_set_cp_protect (a6xx_gpu.c), before the command processor starts - the precondition for an untrusted
+    user-space client. Values: Linux v6.12 a6xx_catalog.c a650_protect_regs (39 entries; NORDWR/RDONLY encodings
+    a6xx_gpu.h: NORDWR = 0x80000000 | len << 18 | reg), CP_PROTECT_CNTL reg 0x84f bits 0 (ACCESS_PROT_EN) / 1
+    (ACCESS_FAULT_ON_VIOL_EN) / 3 (LAST_SPAN_INF_RANGE) = 0xb and CP_PROTECT 0x850..0x87f (a6xx.xml, v6.12;
+    Mesa 24.2 agrees; the xml's "length 32" for the array is stale - Linux writes up to index count_max-1 = 47).
+    **First boot (`umi-0171-gpu23.img`, log overwritten by the second): STEP 22 STOPPED BY OUR OWN PROTECTION**
+    ("does not get through ... protection 0x608e07" - RB_CCU_CNTL 0x8e07, the first register step 22's commands
+    write): the 39 entries had gone into CP_PROTECT(0..38) and the zero-filled rest left register 47 = 0, so
+    LAST_SPAN_INF_RANGE extended the empty span 0 over the whole register space and blocked every command
+    register write. Lesson: Linux's DECLARE_ADRENO_PROTECT(a650_protect, 48) is count_max = 48 against
+    ARRAY_SIZE = 39 - a6xx_set_cp_protect writes entries 0..count-2 into CP_PROTECT(0..37) and the last
+    (infinite-range) entry into CP_PROTECT(47), leaving 38..46 untouched. Fixed to exactly that.
+    **Second boot (CI `40399500064`, log `research/logs/umi-0171-gpu23.txt`): ALL 23 STEPS PASS WITH REGISTER
+    PROTECTION ON** - cp_protect_cntl 0xb, first 0x13fc0000, untouched (index 40) 0, last (47) 0x8001f8c0 read
+    back right; step 22's bands exact, step 23's fence 1 signalled, data words right, magenta/yellow/cyan
+    exact, objects freed. Test binaries to the phone (user's choice, ios-flame): a kernel file server over USB
+    Ethernet, ios-flame patch 0091 (`bsd/dev/sweet_files.c`, TCP PUT/GET/MKDIR/LINK/RM/CHMOD on the running root,
+    started from sweet_usb.c; Mac side tools/flame-files.py) - umi already has sweetusb=2. Next: port that file
+    server, then the SweetAdreno IOUserClient (msm DRM uAPI: GET_PARAM, GEM_NEW/INFO/CLOSE, GEM_SUBMIT,
+    WAIT_FENCE) for Mesa freedreno.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for

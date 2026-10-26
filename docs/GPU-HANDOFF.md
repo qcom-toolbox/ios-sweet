@@ -36,6 +36,9 @@ Lessons:
   two rows as one (8640 = 135 x 64).
 - `CP_EVENT_WRITE` with bit 30 (TIMESTAMP, as Mesa's A6XX event writes) stores a timestamp, not the
   packet's value; for a fence word use the event without bit 30 (Linux a6xx_submit).
+- CP protect (0171): Linux's a650 table has 39 entries but 48 CP_PROTECT registers - entries 0..37 go
+  into CP_PROTECT(0..37), the infinite-range entry into CP_PROTECT(47), 38..46 stay untouched. Writing the
+  entries consecutively leaves register 47 = 0 and LAST_SPAN_INF_RANGE blocks every command register write.
 
 Every step announces its accesses and waits `sweetgpupause` ms so the persistent log survives a reset.
 Writes go through `sa_put()` and are recorded; at the end of a run they are undone in reverse order,
@@ -61,21 +64,22 @@ picture through the "off", so the colours were still shown.
 Goal: iOS user space renders with the GPU (Mesa freedreno, later CoreAnimation's GL renderer). The
 kernel side mirrors Linux's msm DRM uAPI so Mesa's `drm/msm` backend ports with a thin libdrm stand-in.
 Step 23 (memory objects, CP_INDIRECT_BUFFER submit, CACHE_FLUSH_TS fence) already works and is the
-kernel-side shape of GEM_SUBMIT.
+kernel-side shape of GEM_SUBMIT, and the A650 CP protect table is up (0171: steps 21-23 pass with
+every protected register blocked to command streams).
 
-1. **A650 CP protect table first (Linux v6.12 a6xx_catalog.c `a650_protect`, applied in a6xx_gpu.c
-   `a6xx_set_cp_protect`):** CP protect is not set up yet (skipped in step 20), so any submitted
-   commands can write GPU registers. Set it up before the first untrusted client can submit, plus
-   `CP_SET_PROTECTED_MODE 0` behaviour as Linux leaves it.
+1. **File server first (0172): test binaries reach the phone the ios-flame way (user's choice,
+   2026-10-26)** - a kernel file server over USB Ethernet: ios-flame patch 0091 (`bsd/dev/sweet_files.c`:
+   TCP PUT/GET/MKDIR/LINK/RM/CHMOD on the running iOS root, one request per connection, started from
+   sweet_usb.c when the interface comes up; Mac side `tools/flame-files.py` through the bridge).
+   umi already has the USB Ethernet link (`sweetusb=2`, `tools/umi-usbnet.sh`).
 2. **IOUserClient** (`SweetAdreno`, entitled clients only): GET_PARAM (chip id 0x06050002, gmem
    1.125 MB, GPU address space), GEM_NEW / GEM_INFO (GPU address, map into the task) / GEM_CLOSE,
    GEM_SUBMIT (IBs + BO list), WAIT_FENCE. Objects as in step 23: wired pages mapped 4K at a time into
    context 0 at their own addresses, unmapped + TLBIASID on free; fence as the step-23 CACHE_FLUSH_TS
    sequence number (polled until interrupts exist).
 3. **User space:** a small test binary (iOS SDK + ldid; the SWEET AMFI policy makes signed root
-   binaries platform binaries) that draws through the user client; then Mesa freedreno with a
-   libdrm-msm stand-in. Getting files onto the phone's HFS root needs a new root image (the user
-   flashes it) or a kernel-side copy at boot: decide before building the user-space side.
+   binaries platform binaries) pushed through the file server; then Mesa freedreno with a
+   libdrm-msm stand-in.
 
 ## How to work
 
