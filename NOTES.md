@@ -76,6 +76,19 @@
     `<0 0x401>` (gfx3d_user) -> next: one SMR 0x84010000 (stream 0, mask 0x401, covers stream 1 too) instead of two.
     Steps 19-21 did not run. a650_sqe.fw on this phone is version 0x093 (Linux v6.12 wants >= 0x095 for security
     fixes; it is the vendor's own and should run). Phone kept running; the run left 64 recorded writes in place.
+  - **0167 (2026-10-26):** the 3D core gets one SMR with exactly its dt pair, stream 0 / mask 0x401 (covers stream 1);
+    the GMU keeps 5 / 0x400. A refused SMR now logs both smr and s2cr. (CI: three runs failed with no macos-14 runner
+    free, the fourth built.) **Boot `umi-0167-gpu21.img` (log `research/logs/umi-0167-gpu21.txt`): 🎉 THE 3D CORE
+    EXECUTES OUR COMMANDS AND WRITES OUR MEMORY (all 21 steps).** 18: smr0 0x84010000 and s2cr0 0 taken (so the
+    hypervisor wants the dt's exact pair), cbar0 0x1f300, cb0 sctlr reads 0x127 (HUPCF bit 8 kept; bit 12 dropped, as
+    for cb1), ttbr0 / tcr ours, sgfsr 0 (cb0 fsr reads 0x400, outside the fault bits; was 0x400 before too). 19:
+    pas_shutdown 0, pas_init_image 0, pas_mem_setup(13, 0x8681a000, 0x1000) 0 (the memory read zeroes), 1676 bytes
+    of a650_zap.b02 copied, pas_auth_and_reset 0: TrustZone authenticated and started the zap shader. 20: A650 hw_init
+    taken (before: qsb_side 0x70620, uche_cache_ways 0x40000, pc_dbg_eco_cntl 0x180000, hang_int_cntl 0xfffffff, nc_mode
+    0x2); cp_sqe_instr_base 0x1100000, cp_rb_base 0x1000000, cp_rb_cntl 0x800020c read back; CP_SQE_CNTL 1: status 1,
+    no fault / interrupt / protection; CP_ME_INIT read up to 9, idle. 21: CP_SET_SECURE_MODE 0 read up to 11, idle;
+    CP_MEM_WRITE read up to 15; scratch reads 0x600dc0de. a650_sqe.fw 0x093 works. Phone kept running (log goes on
+    ~2500 lines). Next (step 22): a 2D-engine solid fill into a buffer shown on the panel.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
