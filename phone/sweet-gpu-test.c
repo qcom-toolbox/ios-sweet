@@ -86,17 +86,23 @@ main(void)
 	if (logf == NULL) {
 		logf = stderr;
 	}
-	fprintf(logf, "sweet-gpu-test: start\n");
+	setvbuf(logf, NULL, _IONBF, 0);           /* every line on disk at once: the file server reads it */
+	fprintf(logf, "sweet-gpu-test: start (pid %d, bootstrap port %#x)\n", getpid(), bootstrap_port);
 
 	/* Find the service the way a user-space driver would. The GPU bring-up (boot-arg
 	 * sweetgpu) only has the core running a minute or so into the boot, and launchd
 	 * starts this daemon before that: keep looking, then keep opening, for up to 4 min. */
+	mach_port_t mainPort = MACH_PORT_NULL;
+	kern_return_t pk = IOMainPort(bootstrap_port, &mainPort);
+	fprintf(logf, "IOMainPort -> %#x (port %#x)\n", pk, mainPort);
 	for (int tries = 0; tries < 48 && connect == MACH_PORT_NULL; tries++) {
 		CFMutableDictionaryRef match = IOServiceMatching("SweetAdreno");
-		k = IOServiceGetMatchingServices(MACH_PORT_NULL, match, &iter);
+		fprintf(logf, "IOServiceGetMatchingServices try %d...\n", tries);
+		k = IOServiceGetMatchingServices(mainPort, match, &iter);
 		if (k != KERN_SUCCESS) {
 			return fail("IOServiceGetMatchingServices(SweetAdreno)", k);
 		}
+		fprintf(logf, "lookup -> %#x\n", k);
 		io_service_t service = IOIteratorNext(iter);
 		IOObjectRelease(iter);
 		if (service == MACH_PORT_NULL) {
@@ -104,10 +110,11 @@ main(void)
 			sleep(5);
 			continue;
 		}
+		fprintf(logf, "service found (%#x), opening\n", service);
 		k = IOServiceOpen(service, mach_task_self(), 0, &connect);
 		IOObjectRelease(service);
+		fprintf(logf, "IOServiceOpen -> %#x\n", k);
 		if (k != KERN_SUCCESS) {
-			fprintf(logf, "IOServiceOpen refused (try %d): %#x; the core may still be coming up\n", tries, k);
 			connect = MACH_PORT_NULL;
 			sleep(5);
 		}

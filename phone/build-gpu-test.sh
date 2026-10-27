@@ -5,7 +5,8 @@
 set -eu
 cd "$(dirname "$0")/.."
 sdk=$(xcrun --sdk iphoneos --show-sdk-path)
-clang -arch arm64 -isysroot "$sdk" -framework IOKit -framework CoreFoundation \
+clang -arch arm64 -isysroot "$sdk" -miphoneos-version-min=16.0 \
+    -framework IOKit -framework CoreFoundation \
     -o phone/out/sweet-gpu-test phone/sweet-gpu-test.c
 mkdir -p phone/out
 /opt/local/bin/ldid -S phone/out/sweet-gpu-test
