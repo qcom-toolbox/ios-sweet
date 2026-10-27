@@ -223,6 +223,31 @@
     **Next: Mesa freedreno with a libdrm-msm stand-in on the SweetAdreno selectors** (kernel hands out GPU addresses,
     objects map via IOConnectMapMemory(handle), submits are one IB + fence, WAIT_FENCE polls); after that CoreAnimation's
     GL renderer. The test daemon stays installed (re-runs each boot; remove the launchd.plist cache entry to stop it).
+  - **0175 (2026-10-27, night): the NativeAdreno ABI on SweetAdreno + LOCAL KERNEL BUILDS - both proven.**
+    Patch 0175 adds the ABI Turnip's darwin backend speaks (`iokit/Kernel/arm/SweetGPUABI.h`, UniXNU NativeAdrenoABI v1,
+    MIT, served exactly as ios-flame serves it): v2 opens (type 0x4147 'AG' or 2) get a 4 GB GPU window of their own
+    (from 0x200000000; `sweet_adreno_window_alloc`), client-chosen addresses mapped 4K at a time
+    (`sweet_adreno_map_at`/`unmap_at`), multi-IB submits with one CACHE_FLUSH_TS fence and ring-room checks
+    (`sweet_adreno_submit_v2`), ns fence waits, the CP always-on counter (0x0980/1) as GetTimestamp, and a fault
+    counter for GetStatus; BoAlloc is an IOBufferMemoryDescriptor (kernel+user), BoCpuMap the clientMemoryForType
+    token (WC), Submit cleans every BO overlapping the submitted buffers. The `sweetmtl` boot-arg points the
+    IOAcceleratorES at metal2vulkan's SweetMetal2.bundle (MetalPluginName SweetMetal2, class SweetMTL2Device).
+    A650 DeviceInfo: chip 0x06050002, gmem 0x120000 at 0x100000 (flame's A640 value - to verify against Mesa's
+    fd_dev_info), uche trap 0x1fffffffff000 as step 20 programs it, hbb 16, UBWC 4 swizzle 6.
+    **CI was cancelled twice by missing runners, so the kernel was BUILT LOCALLY** (`tools/build-kernel-local.sh`,
+    the recipe in its header: the CI buildtree bt/ + apple-oss dtrace-397 CTF tools + libdispatch-1415.140.2
+    libfirehose_kernel (kernel-variant firehose headers; KERNEL_PRIVATE define) + the toolchain's
+    libclang_rt.cc_kext.a + the KDK 13.5 unpacked from the dortania mirror - no Xcode 15 needed: all generated
+    files come pre-generated from the CI tree, touched so nothing (iig, mig, yacc) regenerates under Xcode 27;
+    ~12 min, incremental). Boot `shim/out/umi-0175-local-gpu23.img` (fastboot), the locally built kernel passes
+    the self-test AND **the daemon PASSES BOTH APIs** (pushed with the file server): v1 as in 0174, and v2 -
+    open 'AG', Query (abi 1, 39-bit, 256 MB BOs), DeviceInfo, two BoAllocs, BoMap at the client's own
+    0x200100000/0x200200000, one-IB Submit -> fence 3 signalled, data readback exact, GetTimestamp 138200011:
+    "THE TURNIP ABI WORKS" (v1 PASS, v2 PASS). **Next: build Turnip (Mesa 85fda3b3 + UniXNU patches/mesa,
+    -Dfreedreno-kmds=darwin, tu_knl_darwin.cc) and metal2vulkan (steelbrain @720ef1ce + flame's
+    phone/metal2 bridge patches; Rust 1.98, aarch64-apple-ios) into SweetMetal2.bundle, push it over the file
+    server, boot sweetmtl=2.** Tools needed locally: rustup + bison 3 (brew); flame's build scripts are the
+    recipe (xnu-work/refs/flame-*).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
