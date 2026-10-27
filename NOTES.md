@@ -196,6 +196,33 @@
     and LaunchDaemon over the file server. **Next session: on the 0173 boot (or a fresh one) `bash
     phone/build-gpu-test.sh install`, reboot the phone, then GET /private/var/sweet/gpu-test.log (expect PASS, the
     four 0x5eed000n words) and pull the kernel log (SWEET ADRENO published + opens + steps 21-23 green).**
+  - **0174 (2026-10-27, evening): USER SPACE DRAWS WITH THE GPU.** Three bugs stood between the 0173 service and a passing
+    user-space test, all found live through the file server (`tools/umi-files.py`, no TWRP needed):
+    1. The test binary was built against the iPhoneOS 27.1 SDK with its default min version - `minos 27.0` - which iOS
+       16.7's dyld refuses; `-miphoneos-version-min=16.0` fixes it (phone/build-gpu-test.sh).
+    2. **iOS launchd does NOT scan /System/Library/LaunchDaemons: every job comes from the launchd cache
+       /System/Library/xpc/launchd.plist** (binary plist, 531 LaunchDaemons entries with each job's parsed content;
+       launchd_cache_loader sends it to launchd, and `launchd_unsecure_cache=1` skips only its signature check). A pushed
+       plist is never read; the job must be added to the cache (plistlib: `d['LaunchDaemons'][path] = {Label, Program,
+       RunAtLoad, ...}`, FMT_BINARY back), as done for com.sweet.gputest (with StandardOut/StandardErrorPath).
+    3. `IOServiceOpen` on SweetAdreno returned kIOReturnUnsupported (0xe00002c7) on every retry: the IOUserClientClass
+       property was set in `SweetAdreno::start()`, but nothing matches the service, so start() never runs -
+       `newUserClient` needs the property to allocate the client class. Patch 0174 sets it at publish time, like the
+       other SWEET stand-ins (IONetworkStack, IOAcceleratorES).
+    Note: user-client opens do NOT call handleOpen (no `service->open()` in IOUserClient.cpp), so the "opens refused"
+    wording is really "operations refused": every C API call checks `sweet_adreno_service_ready()` (steps 18 + 20 done).
+    CI `40587489455` (one queued run cancelled with no runner), boot `shim/out/umi-0174-gpu23.img`, kernel log
+    `research/logs/umi-0174-gputest.txt` (service published at line 99, steps 22+23 green, exec sweet-gpu-test at 1898).
+    **The test (`phone/sweet-gpu-test.c`, launchd daemon com.sweet.gputest) PASSES from the running phone**:
+    /private/var/sweet/gpu-test.log - SweetAdreno opened (pid 78), GET_PARAM chip id 0x6050002 / gmem 0x120000 / VA start
+    0x100000000, GEM_NEW two objects (commands at the core's 0x100034000, data at 0x100048000), the IB built in the
+    task-mapped memory (IOConnectMapMemory), GEM_SUBMIT -> fence 2, WAIT_FENCE signalled, the data object reads
+    0x5eed0001 0x5eed0002 0x5eed0003 0x5eed0004 "as the core was told to write (USER SPACE DRAWS WITH THE GPU)", PASS.
+    Caveat noted: the sweetgpu self-test and user clients share the kernel ring and fence word (the mutex covers kernel
+    state, and the self-test is over long before real clients); fences are a single 32-bit sequence.
+    **Next: Mesa freedreno with a libdrm-msm stand-in on the SweetAdreno selectors** (kernel hands out GPU addresses,
+    objects map via IOConnectMapMemory(handle), submits are one IB + fence, WAIT_FENCE polls); after that CoreAnimation's
+    GL renderer. The test daemon stays installed (re-runs each boot; remove the launchd.plist cache entry to stop it).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for

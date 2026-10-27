@@ -59,27 +59,31 @@ interplay to remember: backboardd turned the display off ~6 s into a hold, so st
 was refused (it always refused display-off) and it drew anyway; the fade-skip kept the panel on the GPU's
 picture through the "off", so the colours were still shown.
 
-## What to do next: a kernel GPU service for Mesa (freedreno)
+## What to do next: Mesa freedreno on the SweetAdreno service
 
-Goal: iOS user space renders with the GPU (Mesa freedreno, later CoreAnimation's GL renderer). The
-kernel side mirrors Linux's msm DRM uAPI so Mesa's `drm/msm` backend ports with a thin libdrm stand-in.
-Step 23 (memory objects, CP_INDIRECT_BUFFER submit, CACHE_FLUSH_TS fence) already works and is the
-kernel-side shape of GEM_SUBMIT, and the A650 CP protect table is up (0171: steps 21-23 pass with
-every protected register blocked to command streams). Test binaries and tools reach the phone
-through the kernel file server (0172: ios-flame 0091 port, TCP 2223 on ue0, `tools/umi-files.py`;
-pushes are synced and survive a reset - proven with a 1 MB file across a reboot).
+Goal: iOS user space renders with the GPU (Mesa freedreno, later CoreAnimation's GL renderer).
+The kernel side is DONE and proven end to end (2026-10-27, patch 0174): steps 1-23 of the bring-up,
+the A650 CP protect table (0171), the kernel file server (0172) and the SweetAdreno service (0173)
+whose first user-space client - `phone/sweet-gpu-test.c`, a launchd daemon - PASSES: GEM objects
+mapped into the task, an IB submitted, the CACHE_FLUSH_TS fence signalled, the GPU's words read
+back exact. **User space draws with the GPU.**
 
-1. **First, verify 0173 (SweetAdreno, the msm-uAPI service - written, built, NOT yet verified):**
-   boot `shim/out/umi-0173-gpu23.img`, check the log for "SWEET ADRENO: GPU service published"
-   and steps 21-23 green, then `bash phone/build-gpu-test.sh install` (pushes the ldid-signed
-   test + its LaunchDaemon over the file server), reboot, and GET `/private/var/sweet/gpu-test.log`
-   (expect PASS: the four 0x5eed000n words the IB CP_MEM_WRITEs, read back through the user
-   client). If that passes, user space draws with the GPU.
-2. **Then Mesa freedreno** with a libdrm-msm stand-in on the SweetAdreno selectors (GET_PARAM /
-   GEM_NEW / GEM_INFO / GEM_CLOSE / GEM_SUBMIT / WAIT_FENCE, object memory via
-   IOConnectMapMemory(handle)). Mind: the kernel hands out GPU addresses (userspace does not
-   choose them, unlike msm), fences are 32-bit polled sequence numbers, and there is one queue
-   (the kernel ring).
+Next, in order:
+
+1. **libdrm-msm stand-in** (`phone/` or `tools/`): wrap the SweetAdreno selectors in the
+   drm/msm API shape Mesa's freedreno backend calls (fd_pipe: chip id / gmem / VA; bo create /
+   map / close; submit as one IB + fence; fence wait). Differences from Linux msm to honour:
+   the kernel hands out GPU addresses (userspace does not allocate them), object memory reaches
+   the task via IOConnectMapMemory(handle), fences are a single 32-bit polled sequence, there is
+   one queue, and GET_PARAM only answers msm_drm.h ids the service knows (0x01, 0x02, 0x03, 0x04,
+   0x07, 0x0e, 0x0f, 0x10, 0x12, 0x13).
+2. **Build Mesa freedreno for arm64/iOS** against the stand-in, push it (plus any shader caches)
+   through the file server, run its utilities first (freedreno tests / a clear-to-panel test like
+   step 22's fill on a scanout BO), then a GL context through CoreAnimation's GL renderer.
+3. **Watch out:** the sweetgpu self-test and user clients share the kernel ring and fence word;
+   the test daemon (com.sweet.gputest) re-runs each boot - remove its launchd.plist cache entry
+   when it is no longer wanted. iOS launchd jobs must be added to /System/Library/xpc/launchd.plist
+   (the cache), not just dropped into LaunchDaemons.
 
 ## How to work
 
