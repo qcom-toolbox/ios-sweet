@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <mach/mach.h>
 #include <IOKit/IOKitLib.h>
+#include "NativeAdrenoABI.h"
 
 #define SEL_GET_PARAM   1
 #define SEL_GEM_NEW     2
@@ -32,6 +33,9 @@
 #define MSM_PARAM_VA_START      0x0e
 
 #define CP_MEM_WRITE           0x3d
+
+static int v1_test(void);
+static int v2_test(void);
 
 static FILE *logf;
 
@@ -72,22 +76,36 @@ fail(const char *what, kern_return_t k)
 	return 1;
 }
 
+static const uint32_t words[4] = { 0x5eed0001u, 0x5eed0002u, 0x5eed0003u, 0x5eed0004u };
+
 int
 main(void)
 {
-	static const uint32_t words[4] = { 0x5eed0001u, 0x5eed0002u, 0x5eed0003u, 0x5eed0004u };
-	io_connect_t connect = MACH_PORT_NULL;
-	io_iterator_t iter;
-	kern_return_t k;
-	uint64_t in[3], out[2];
-	uint32_t nout;
-
 	logf = fopen("/private/var/sweet/gpu-test.log", "w");
 	if (logf == NULL) {
 		logf = stderr;
 	}
 	setvbuf(logf, NULL, _IONBF, 0);           /* every line on disk at once: the file server reads it */
 	fprintf(logf, "sweet-gpu-test: start (pid %d, bootstrap port %#x)\n", getpid(), bootstrap_port);
+	int v1 = v1_test();
+	int v2 = v2_test();
+	int pass = v1 == 0 && v2 == 0;
+	fprintf(logf, "sweet-gpu-test: %s (v1 %s, v2 %s)\n", pass ? "PASS" : "FAIL",
+	    v1 == 0 ? "PASS" : "FAIL", v2 == 0 ? "PASS" : "FAIL");
+	fflush(logf);
+	return pass ? 0 : 1;
+}
+
+/* ---- v1: the msm-uAPI-shaped selectors (the 0173/0174 test) ---- */
+
+static int
+v1_test(void)
+{
+	io_connect_t connect = MACH_PORT_NULL;
+	io_iterator_t iter;
+	kern_return_t k;
+	uint64_t in[3], out[2];
+	uint32_t nout;
 
 	/* Find the service the way a user-space driver would. The GPU bring-up (boot-arg
 	 * sweetgpu) only has the core running a minute or so into the boot, and launchd
@@ -218,8 +236,198 @@ out:
 	(void)scalar(connect, SEL_GEM_CLOSE, in, 1, out, &nout);
 	in[0] = data_handle;
 	(void)scalar(connect, SEL_GEM_CLOSE, in, 1, out, &nout);
-	fprintf(logf, "sweet-gpu-test: %s\n", pass ? "PASS" : "FAIL");
+	fprintf(logf, "v1 (msm-uAPI) test: %s\n", pass ? "PASS" : "FAIL");
 	fflush(logf);
 	IOServiceClose(connect);
 	return pass ? 0 : 1;
+}
+
+/* ---- v2: the NativeAdreno ABI (Turnip's darwin backend), as tu_knl_darwin.cc uses it ---- */
+
+static kern_return_t
+v2call(io_connect_t c, uint32_t method, const void *in, size_t insz, void *out, size_t *outsz)
+{
+	return IOConnectCallStructMethod(c, method, in, insz, out, outsz);
+}
+
+static int
+v2_test(void)
+{
+	io_service_t service = MACH_PORT_NULL;
+	io_connect_t c = MACH_PORT_NULL;
+	kern_return_t k;
+
+	/* open the same service with the v2 ('AG') type */
+	CFMutableDictionaryRef match = IOServiceMatching("SweetAdreno");
+	io_iterator_t iter;
+	k = IOServiceGetMatchingServices(MACH_PORT_NULL, match, &iter);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: no matching services: %#x\n", k);
+		return 1;
+	}
+	service = IOIteratorNext(iter);
+	IOObjectRelease(iter);
+	if (service == MACH_PORT_NULL) {
+		fprintf(logf, "v2: no SweetAdreno service\n");
+		return 1;
+	}
+	k = IOServiceOpen(service, mach_task_self(), 0x4147, &c);
+	IOObjectRelease(service);
+	if (k != KERN_SUCCESS || c == MACH_PORT_NULL) {
+		fprintf(logf, "v2: open type 0x4147 refused: %#x\n", k);
+		return 1;
+	}
+	fprintf(logf, "v2: SweetAdreno opened (type 0x4147)\n");
+
+	struct NativeAdrenoAbiParams params;
+	size_t sz = sizeof(params);
+	k = v2call(c, NativeAdrenoMethodQuery, NULL, 0, &params, &sz);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: Query -> %#x\n", k);
+		goto out;
+	}
+	fprintf(logf, "v2: Query -> abi %u, input bits %u, output bits %u, max bo %#llx\n",
+	    params.abi_version, params.input_bits, params.output_bits, (unsigned long long)params.max_bo_bytes);
+
+	struct NativeAdrenoAbiDeviceInfo di;
+	sz = sizeof(di);
+	k = v2call(c, NativeAdrenoMethodGetDeviceInfo, NULL, 0, &di, &sz);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: GetDeviceInfo -> %#x\n", k);
+		goto out;
+	}
+	fprintf(logf, "v2: DeviceInfo -> chip id %#x, gmem %#x at %#llx, va %#llx..%#llx, hbb %u, ubwc %u\n",
+	    di.chip_id, di.gmem_bytes, (unsigned long long)di.gmem_base, (unsigned long long)di.va_start,
+	    (unsigned long long)(di.va_start + di.va_size), di.highest_bank_bit, di.ubwc_version);
+
+	/* two objects: commands and data, at addresses we pick in our window */
+	struct NativeAdrenoAbiBoAlloc ba = { .bytes = 16384, .align_log2 = 12, .contiguous = 0 };
+	struct NativeAdrenoAbiBoAllocReply br;
+	sz = sizeof(br);
+	k = v2call(c, NativeAdrenoMethodBoAlloc, &ba, sizeof(ba), &br, &sz);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: BoAlloc commands -> %#x\n", k);
+		goto out;
+	}
+	uint64_t cmd_h = br.handle;
+	sz = sizeof(br);
+	if (v2call(c, NativeAdrenoMethodBoAlloc, &ba, sizeof(ba), &br, &sz) != KERN_SUCCESS) {
+		fprintf(logf, "v2: BoAlloc data -> %#x\n", k);
+		goto out;
+	}
+	uint64_t data_h = br.handle;
+	fprintf(logf, "v2: BoAlloc -> commands handle %llu, data handle %llu\n",
+	    (unsigned long long)cmd_h, (unsigned long long)data_h);
+
+	uint64_t cmd_iova = di.va_start + 0x100000, data_iova = di.va_start + 0x200000;
+	struct NativeAdrenoAbiBoMap bm = { .handle = cmd_h, .iova = cmd_iova, .permissions = 3,
+		.writeback = 0, .shareability = 2, .reserved = 0 };
+	struct NativeAdrenoAbiBoMapReply bmr;
+	sz = sizeof(bmr);
+	k = v2call(c, NativeAdrenoMethodBoMap, &bm, sizeof(bm), &bmr, &sz);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: BoMap commands -> %#x\n", k);
+		goto out;
+	}
+	bm.handle = data_h;
+	bm.iova = data_iova;
+	sz = sizeof(bmr);
+	if (v2call(c, NativeAdrenoMethodBoMap, &bm, sizeof(bm), &bmr, &sz) != KERN_SUCCESS) {
+		fprintf(logf, "v2: BoMap data -> %#x\n", k);
+		goto out;
+	}
+	fprintf(logf, "v2: BoMap -> commands at %#llx, data at %#llx\n",
+	    (unsigned long long)cmd_iova, (unsigned long long)data_iova);
+
+	/* the command object in this task (BoCpuMap -> token -> IOConnectMapMemory) */
+	struct NativeAdrenoAbiBoCpuMap cm = { .handle = cmd_h };
+	struct NativeAdrenoAbiBoCpuMapReply cmr;
+	sz = sizeof(cmr);
+	k = v2call(c, NativeAdrenoMethodBoCpuMap, &cm, sizeof(cm), &cmr, &sz);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: BoCpuMap -> %#x\n", k);
+		goto out;
+	}
+	mach_vm_address_t map_addr = 0;
+	mach_vm_size_t map_size = 0;
+	k = IOConnectMapMemory(c, cmr.token, mach_task_self(), &map_addr, &map_size, kIOMapAnywhere);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: map commands token %u -> %#x\n", cmr.token, k);
+		goto out;
+	}
+	volatile uint32_t *ib = (volatile uint32_t *)map_addr;
+	uint32_t n = 0;
+	ib[n++] = pkt7(CP_MEM_WRITE, 2 + 4);
+	ib[n++] = (uint32_t)data_iova;
+	ib[n++] = (uint32_t)(data_iova >> 32);
+	for (int i = 0; i < 4; i++) {
+		ib[n++] = words[i];
+	}
+
+	/* submit, wait, read the data object back through its own map */
+	struct NativeAdrenoAbiSubmit sub;
+	bzero(&sub, sizeof(sub));
+	sub.buffer_count = 1;
+	sub.buffers[0].handle = cmd_h;
+	sub.buffers[0].iova = cmd_iova;
+	sub.buffers[0].bytes = 4ull * n;
+	struct NativeAdrenoAbiSubmitReply sr;
+	sz = sizeof(sr);
+	k = v2call(c, NativeAdrenoMethodSubmit, &sub, sizeof(sub), &sr, &sz);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: Submit -> %#x\n", k);
+		goto out;
+	}
+	fprintf(logf, "v2: Submit %u words -> fence %llu\n", n, (unsigned long long)sr.fence);
+
+	struct NativeAdrenoAbiWaitFence wf = { .fence = sr.fence, .timeout_ns = 2000000000ull };
+	k = v2call(c, NativeAdrenoMethodWaitFence, &wf, sizeof(wf), NULL, 0);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: WaitFence(%llu) -> %#x (NOT signalled)\n", (unsigned long long)sr.fence, k);
+		goto out;
+	}
+	fprintf(logf, "v2: WaitFence(%llu) signalled\n", (unsigned long long)sr.fence);
+
+	cm.handle = data_h;
+	sz = sizeof(cmr);
+	if (v2call(c, NativeAdrenoMethodBoCpuMap, &cm, sizeof(cm), &cmr, &sz) != KERN_SUCCESS) {
+		fprintf(logf, "v2: BoCpuMap data -> %#x\n", k);
+		goto out;
+	}
+	mach_vm_address_t data_addr = 0;
+	mach_vm_size_t data_size = 0;
+	k = IOConnectMapMemory(c, cmr.token, mach_task_self(), &data_addr, &data_size, kIOMapAnywhere);
+	if (k != KERN_SUCCESS) {
+		fprintf(logf, "v2: map data token %u -> %#x\n", cmr.token, k);
+		goto out;
+	}
+	volatile uint32_t *got = (volatile uint32_t *)data_addr;
+	int right = got[0] == words[0] && got[1] == words[1] && got[2] == words[2] && got[3] == words[3];
+	fprintf(logf, "v2: the data object reads %#x %#x %#x %#x: %s\n", got[0], got[1], got[2], got[3],
+	    right ? "as the core was told to write (THE TURNIP ABI WORKS)" :
+	    "NOT what the core was told to write");
+
+	struct NativeAdrenoAbiTimestamp ts;
+	sz = sizeof(ts);
+	if (v2call(c, NativeAdrenoMethodGetTimestamp, NULL, 0, &ts, &sz) == KERN_SUCCESS) {
+		fprintf(logf, "v2: GetTimestamp -> %llu\n", (unsigned long long)ts.ticks);
+	}
+
+	struct NativeAdrenoAbiBoFree bf = { .handle = data_h };
+	(void)v2call(c, NativeAdrenoMethodBoFree, &bf, sizeof(bf), NULL, 0);
+	bf.handle = cmd_h;
+	(void)v2call(c, NativeAdrenoMethodBoFree, &bf, sizeof(bf), NULL, 0);
+	fprintf(logf, "v2 (NativeAdreno/Turnip ABI) test: %s\n", right ? "PASS" : "FAIL");
+	IOServiceClose(c);
+	return right ? 0 : 1;
+
+out:
+	{
+		struct NativeAdrenoAbiBoFree bf = { .handle = data_h };
+		(void)v2call(c, NativeAdrenoMethodBoFree, &bf, sizeof(bf), NULL, 0);
+		bf.handle = cmd_h;
+		(void)v2call(c, NativeAdrenoMethodBoFree, &bf, sizeof(bf), NULL, 0);
+	}
+	IOServiceClose(c);
+	return 1;
 }
