@@ -59,28 +59,34 @@ interplay to remember: backboardd turned the display off ~6 s into a hold, so st
 was refused (it always refused display-off) and it drew anyway; the fade-skip kept the panel on the GPU's
 picture through the "off", so the colours were still shown.
 
-## Where things stand (2026-10-28, patches 0160-0180)
+## Where things stand (2026-10-28 evening, patches 0160-0182)
 
 The Metal stack creates real Turnip A650 devices in backboardd and SpringBoard and compiles
 CoreAnimation shaders/pipelines. COPY presents carry varied image data but the panel shows
 moving noise. Pipeline `ok=1` records confirm successful pipeline creation, not correct pixels.
 
-1. **COPY-path image corruption is the priority.** `sweetfb_direct=0` reaches the panel.
-   Stride sweep on the prepared 0185 images: 4500 = same touch-responsive noise; 4096 = denser
-   noise; 5120 = static boot console (photo), probably because the copy bounds check rejects
-   the larger span. The 5120 result is not evidence of a GPU hang or a valid stride comparison.
-   All actual payload boot lines were checked. `TU_DEBUG=flushall,noubwc` remains configured.
-   The photo has broad dark bands between bright low-saturation noise. A stride fix is unproven.
-   Source trace: NativeBridgeMetalFrontend passes IOSurfaceGetBytesPerRow to IoSurfacePlane;
-   runtime texture.rs's explicit host-image path requests DRM_FORMAT_MOD_LINEAR with that pitch
-   and verifies Vulkan's reported pitch. Whether the running workload selects this path is
-   still to determine.
+1. **The noise is in memory; the copy is faithful.** Capture 1 of the 0187 boot (present 69,
+   ~181 s) sampled the presented surface: transparent black at the top-left, WHITE NOISE in the
+   centre (neighbor coherence ~75/255 vs ~2 for photos, both axes). No read-geometry bug exists -
+   the GPU's composited output itself is garbage in the middle, untouched-bzero at the corner.
+   The stride sweep was conclusive (no value could ever fix memory content). The panel shows
+   that noise frozen (presents carry small damage rects; the glitched but recognizable lock-screen
+   clock is one that renders/copies), refreshed by full-screen presents. Frames take 15-60 s at
+   305 MHz; `sweet_adreno_finish()` caps at 500 ms, so present-time copies are mid-render.
+   Two instruments decide the layer: kernel **0182** (idledump: the pending surface sampled
+   every 30 s away from present; per-present rect + finish-outcome logs; copydump regions
+   fixed to the surface's own points) and the extended **vktest** (`test_import`: the
+   drawable's exact IOSurface/linear-import path with A write-before-import, B GPU sample,
+   C write-after-import without a cache push, D with dc civac, E GPU-clear-into-import read
+   back - A/B fail = import read broken, C-fails-D-passes = post-import CPU writes invisible
+   (the missing cache push CA's decoded textures would need), E fails = render-target import
+   broken). vktest A-E results land in /var/local/vktest.log at boot.
 2. **Direct scanout does not update the panel.** Registers point at populated pool memory, but
    command-mode GRAM stops picking it up around the GPU hold/display-off/on cycle. Keep COPY
    as the workaround. Compare 0092 before changing DPU programming; re-arming fetch is a hypothesis.
-3. **Intermittent CP_OPCODE_ERROR remains open.** Patch 0178 reads CP_SQE_STAT_ADDR=1 then
-   CP_SQE_STAT_DATA as Linux a6xx_cp_hw_err_irq does and logs recent submissions/IB words.
-   CP_SQE_INSTR_BASE is the microcode base, not a faulting PC. Capture the live dump on a hang.
+3. **Intermittent CP_OPCODE_ERROR remains open.** Patch 0178+0181 read the SQE state safely
+   after a stuck fence. Capture the live dump on a hang (the 0187/0182 boots had none - the GPU
+   was slow but never stuck; fences advanced to 5224).
 
 Latest kernel commits:
 - **0179, 761390e:** preserve the prior session's fix excluding imported BOs from submit-time
@@ -93,7 +99,40 @@ Latest kernel commits:
 Both files passed per-file cross-compilation; local kernel build succeeded (log
 `/tmp/umi-0180-build.log`). Image `shim/out/umi-0186-copydump.img` uses the 0184 boot line/ADT
 with normal source stride and sweetfb_dump=1. Payload fits the existing ramdisk page count;
-DTB verified byte-for-byte against check-0176m/dtb. RAM boot succeeded; capture pending.
+DTB verified byte-for-byte against check-0176m/dtb. RAM boot succeeded, but it panicked before capture: fence 2511 stalled near 350 s,
+then FlushPoC_DcacheRegion faulted at PC 0xfffffe000748482c, LR 0xfffffe0007483c54,
+FAR 0xfffffe002c868000 (user photo). No copydump records; neither UDP nor the last persistent
+ring flush contains the hang header or panic. Logs: research/logs/umi-0186-panic-live.txt and
+umi-0186-panic.txt (TWRP pull explicitly agreed).
+
+**0181, 6675b52:** fix the old hang reader's invented pa-gPhysBase+gVirtBase mapping, which
+bypassed arm_vm_init.c's ptov_table. Read-only GPU page-table walk under the service mutex;
+valid PTE and managed RAM checks; phystokv translation verified against the kernel mapping;
+copy eight words honoring the IB page offset. This addresses the diagnostic's unsafe read,
+not the GPU hang itself. Also start COPY dumps at 180 s by default (sweetfb_dump=N>1 selects
+another uptime in seconds), still three captures 30 s apart. Per-file checks and local build
+passed (/tmp/umi-0181-build.log). Image shim/out/umi-0187-safe-copydump.img RAM-booted;
+DTB matches check-0176m, payload page count unchanged. Capture pending in /tmp/umi-0187-live.log.
+Decoder: python3 tools/umi-fb-copydump.py LOG OUTDIR (Pillow; flags missing UDP pixels).
+
+**0182, kernel 8a31d99:** the 0187 boot proved the noise is in memory (see item 1 above), and
+that the present-time dumps could not fire again: their gate wanted a >=64x32 present rect,
+which CA only carries for a full-screen present (the lock screen ticks with small damage rects).
+0182 makes `sweet_adreno_finish` report whether the newest fence signalled within the 500 ms cap
+(present logs it), adds a per-present swap-rect log, moves the copydump's regions to the
+surface's own fixed points so any present dumps, and adds the **idledump**: the vsync timer
+samples the pending frame's surface every 30 s from 180 s uptime, away from present - what a
+completed frame holds in memory (six captures, sweetfb_dump=N unchanged). Cross-compiles and
+local build clean (/tmp/umi-0182-build.log). The extended vktest (test_import, A-E coherency
+matrix on the drawable's exact IOSurface/import path) was pushed to the phone over the file
+server as /private/var/sweet/vktest; it runs at boot and writes /var/local/vktest.log. Image
+shim/out/umi-0182-copydump.img (0187's boot line, in-place payload swap, kernel+DTB verified
+against check-0182-base/check-0176m) RAM-booted; 0187's live log saved as
+research/logs/umi-0187-copydump-live.txt. Pending: the A-E matrix and the 0182 boot's
+idledump/presrect/finish logs.
+
+0179/0180 were pushed as ios-sweet commit 4e63ae2; CI 40754611687 remained queued with no
+runner at the last check. 0181 publication and subsequent device evidence are pending.
 Live listener is a Python UDP receive loop writing `/tmp/umi-0186-live.log`; unlike the earlier
 nc listener it remains unconnected so a new phone source port after reboot is accepted.
 The user must run tools/umi-usbnet.sh with sudo after USB re-enumeration.

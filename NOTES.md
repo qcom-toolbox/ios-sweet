@@ -409,6 +409,59 @@
     pending in /tmp/umi-0186-live.log (Python UDP listener; user must configure USB Ethernet).
     Patch exports prepared; CI and device diagnostic results pending. Scratchpad recreated at
     $HOME/ios-sweet-port/umi-gpu-session.md.
+  - **0181 (2026-10-28): 0186 hit a kernel panic while the GPU fence was stuck.**
+    User reports touch-responsive artifacts, then panic. Live log: fence 2511/2512 timeouts;
+    last present 1061 at t=6728861225 (~350 s), before the 400 s pixel-dump trigger. No copydump
+    or hang header was received. Photo: Kernel data abort, PC fffffe000748482c
+    (FlushPoC_DcacheRegion+0x1c), LR fffffe0007483c54 (flush_dcache+0xa4),
+    FAR fffffe002c868000, ESR 96000146; 4 KB flush with gPhysBase/gVirtBase registers present.
+    Old sa_gpu_page manually formed pa-gPhysBase+gVirtBase, ignoring XNU's ptov remappings:
+    unsafe diagnostic. User agreed to TWRP; read-only log pull succeeded (ring total 753763,
+    flush 124), but its last flush predates the fault too. Logs research/logs/umi-0186-panic*.txt.
+    Fix **6675b52 / 0181**: read-only GPU page-table walk under service mutex, valid leaf and
+    managed-PA checks, phystokv plus kernel-map verification, copy IB head at its actual page
+    offset. Unavailable memory is skipped. COPY dumps now default to 180 s (or sweetfb_dump=N
+    seconds for N>1), so pixel evidence can precede the hang. This is a diagnostic fix, not a
+    confirmed GPU-hang fix. Both files cross-compiled and full local build passed.
+    Image shim/out/umi-0187-safe-copydump.img, SHA256
+    04ec637a25c5f9de3ec8d67426617bf3241d5d81fd585f4b47e9b60f2ee1adfd,
+    unchanged payload page count and verified DTB, RAM-booted; user brought USB networking up.
+    Pending capture: /tmp/umi-0187-live.log. Decoder tools/umi-fb-copydump.py renders raw BGRA
+    regions and alpha separately, reports missing pixels and row profiles. CI 40754611687 for
+    0179/0180 (ios-sweet 4e63ae2) is still queued; local builds remain canonical.
+  - **0182 (2026-10-28, evening): THE NOISE IS IN MEMORY, NOT IN THE COPY - and the dumps never fired again.**
+    The 0187 boot was analyzed live (USB networking up the whole time): capture 1 (present 69, ~181 s)
+    shows the presented surface holds TRANSPARENT BLACK at (20,48) and WHITE NOISE at (528,1202) -
+    neighbor-pixel coherence ~75/255 both axes (a photo reads ~2), i.e. the memory itself is noise, so
+    **the stride sweep was already conclusive: no read-geometry bug exists; the GPU's composited output
+    is garbage in the middle and untouched (bzero'd) at the top-left**. Findings of the same boot:
+    all BoMaps succeeded (the `kr 0xe00002be` lines in turnip-backboardd.log are STALE from a pre-0177
+    boot); no window aliasing (per-task 4 GB windows); no CP hang (fences reached 5224). The user's
+    panel: "moving noise with various color and some blue strips", and after a touch "the clock on the
+    lockscreen shows and is really glitched" - small damage rects (the clock) DO render and copy; the
+    rest is the frozen full-screen present from 181 s. Present rate collapsed to 0.76 fps and stopped
+    181-1055 s (backboardd looping "vertexFunction is not a MTLFunction"), then touch restarted
+    everything. CA frames take 15-60 s at 305 MHz while `sweet_adreno_finish()` caps at 500 ms, so
+    present-time copies are MID-RENDER. Captures 2/3 never fired because the dump gate wanted a
+    >=64x32 present rect and CA hands over small damage rects. gmem verified correct after all: A650
+    `gmem = SZ_1M + SZ_128K` (0x120000, Linux v6.12 a6xx_catalog.c) at base 0x100000, and Linux
+    SKIPS UCHE_GMEM_RANGE programming for the a650 family (a6xx_gpu.c) exactly like our hw_init - the
+    0175 caveat closes. vktest ALL-PASSes every boot including a 256x256 draw, so basic Turnip
+    rendering works; the IMPORT path (the drawable's own) was never tested. **Kernel 0182 (8a31d99)**:
+    `sweet_adreno_finish` returns timed-out-or-not (present logs it, 32 lines), a per-present swap-rect
+    log (64 lines), copydump regions fixed to the surface's own points (top-left/centre/clock band) so
+    any present dumps, and a new **idledump**: every 30 s from 180 s the vsync timer samples the
+    pending frame's surface at the same points away from present - what a COMPLETED frame holds.
+    **vktest extended** (installed at /private/var/sweet/vktest, runs at boot, logs
+    /var/local/vktest.log): `test_import` builds the drawable's exact shape (IOSurface 1125x2436 BGRA
+    bpr 4608 via the SWEET IOSurface service), imports it as HOST_ALLOCATION (the runtime's path),
+    makes a DRM_FORMAT_MOD_LINEAR image with explicit pitch and measures A write-before-import copy,
+    B a GPU SAMPLE in a draw, C write-after-import with no cache push (what CA does), D the same +
+    dc civac, E a GPU clear INTO the import read back by the CPU - the matrix that names the layer
+    the noise comes from. Image `shim/out/umi-0182-copydump.img` (0187's boot line, copy path,
+    sweetfb_dump=1, in-place payload swap, same 4174 pages, kernel+DTB verified), fastboot-booted;
+    0187's live log saved as `research/logs/umi-0187-copydump-live.txt`. **Next: read
+    /var/local/vktest.log's A-E matrix and the idledump/presrect/finish logs of the 0182 boot.**
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
