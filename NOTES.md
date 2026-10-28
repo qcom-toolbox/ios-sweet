@@ -388,6 +388,27 @@
        boot, CP_OPCODE_ERROR, opcode readout instrumented, intermittent ~1 per boot).** Logs:
        `research/logs/umi-0178b-hang-live.txt`, image `shim/out/umi-0181.img` (the fix), umi-0179/0180 (the
        pixel-sampling iterations).
+  - **0179/0180 (2026-10-28, later evening): stride sweep and wider COPY diagnostics.**
+    4500-byte stride: user reports same touch-responsive noise. 4096: denser noise, no UI.
+    5120: photo shows static boot console; likely COPY's allocation bounds check rejects the
+    enlarged span, not proof of a GPU freeze. No tested stride produced UI. Actual boot-header
+    command lines verified (`sweetfb_direct=0`, corresponding source stride, sweetgpu=23,
+    sweetmtl=2). Photo analysis: broad dark bands and bright low-saturation noise; cause unproven.
+    Source inspection preserves IOSurfaceGetBytesPerRow through bridge/IoSurfacePlane, and the
+    runtime's explicit linear host-image path checks Vulkan's returned pitch. Active path still
+    needs runtime evidence. Retrieved 5120 Metal/Turnip/backboardd pipeline logs to /tmp;
+    journal totals accumulate across boots (2106 R and 1503 S records ok=1), not a per-boot count.
+    Kernel **761390e / 0179** commits the existing submit-time skip of imported BO cache cleaning
+    (clean once at BoMap). **29b1da4 / 0180** commits the existing stride override plus new bounded
+    `sweetfb_dump=1`: COPY geometry/rejection logs, two 64x32 pixel regions and row profiles,
+    after sync/cache maintenance, three captures from 400 s uptime at least 30 s apart.
+    Per-file compilation passed; full local build passed (/tmp/umi-0180-build.log). Image
+    `shim/out/umi-0186-copydump.img` uses 0184's ADT/boot line, normal stride, sweetfb_dump=1;
+    SHA256 0d0e9ac6914051450bba1ab81634933f826e4ae6d94f31606e8ff6d491a1a952.
+    Ramdisk page count unchanged, DTB matches check-0176m/dtb. RAM boot succeeded; pixel capture
+    pending in /tmp/umi-0186-live.log (Python UDP listener; user must configure USB Ethernet).
+    Patch exports prepared; CI and device diagnostic results pending. Scratchpad recreated at
+    $HOME/ios-sweet-port/umi-gpu-session.md.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for

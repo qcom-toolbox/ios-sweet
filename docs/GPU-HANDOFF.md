@@ -59,29 +59,48 @@ interplay to remember: backboardd turned the display off ~6 s into a hold, so st
 was refused (it always refused display-off) and it drew anyway; the fade-skip kept the panel on the GPU's
 picture through the "off", so the colours were still shown.
 
-## Where things stand (2026-10-28, patches 0160-0177)
+## Where things stand (2026-10-28, patches 0160-0180)
 
-The full Metal stack works end to end: Metal -> SweetMetal2.bundle -> metal2vulkan -> Turnip ->
-SweetAdreno v2 -> the A650. backboardd and SpringBoard both create real devices ("device Turnip
-Adreno (TM) 650", ~1.8 s / ~4.2 s), map BOs, compile shaders on the phone and submit; fences
-complete at hundreds per boot. Two problems are open (NOTES.md umi 0177 has every value):
+The Metal stack creates real Turnip A650 devices in backboardd and SpringBoard and compiles
+CoreAnimation shaders/pipelines. COPY presents carry varied image data but the panel shows
+moving noise. Pipeline `ok=1` records confirm successful pipeline creation, not correct pixels.
 
-1. **The intermittent GPU hang is CP_OPCODE_ERROR** (0177): around the 950th submit of a Metal
-   workload (once in ~15 min), the command processor stops in an indirect buffer of **backboardd's**
-   command stream: ring fully read, fence word stuck at the previous fence, RBBM GPU_BUSY|CP_BUSY,
-   CP_INTERRUPT_STATUS bit 0, no CP_HW_FAULT, no protection violation, no SMMU fault. The stuck-fence
-   dump (patch 0177) logs all of that plus the SQE's instruction address (CP_SQE_INSTR_BASE) and the
-   IB words it is stopped on, read through context 0's PTEs. **Next: catch the hang with that dump
-   running and read the offending opcode.**
-2. **No UI frame ever reaches the panel** - both 0177 boots the panel stayed on the garbled console
-   frame (user: "same artifacts except we don't even see a part of iOS ui"; the 0175 boot DID show
-   UI with artifacts, so 0177's present-path changes may have slowed the frame loop, or
-   backboardd never presents: it logs "vertexFunction/fragmentFunction is not a MTLFunction" (118
-   per boot) and loops "no-copy buffer refused"). **Next: add present()/directPresent() count+path
-   logging with its own budget; check whether backboardd ever creates a full-screen surface; then
-   the artifact itself (faint vertical character columns, Image #6 in the umi NOTES section).**
-   Flame's later patches (0111 gpu-display-mask, 0113 unmap-after-fence, 0117 pool accounting,
-   0119 async present) cover similar ground; refs in `xnu-work/refs/flame-*`.
+1. **COPY-path image corruption is the priority.** `sweetfb_direct=0` reaches the panel.
+   Stride sweep on the prepared 0185 images: 4500 = same touch-responsive noise; 4096 = denser
+   noise; 5120 = static boot console (photo), probably because the copy bounds check rejects
+   the larger span. The 5120 result is not evidence of a GPU hang or a valid stride comparison.
+   All actual payload boot lines were checked. `TU_DEBUG=flushall,noubwc` remains configured.
+   The photo has broad dark bands between bright low-saturation noise. A stride fix is unproven.
+   Source trace: NativeBridgeMetalFrontend passes IOSurfaceGetBytesPerRow to IoSurfacePlane;
+   runtime texture.rs's explicit host-image path requests DRM_FORMAT_MOD_LINEAR with that pitch
+   and verifies Vulkan's reported pitch. Whether the running workload selects this path is
+   still to determine.
+2. **Direct scanout does not update the panel.** Registers point at populated pool memory, but
+   command-mode GRAM stops picking it up around the GPU hold/display-off/on cycle. Keep COPY
+   as the workaround. Compare 0092 before changing DPU programming; re-arming fetch is a hypothesis.
+3. **Intermittent CP_OPCODE_ERROR remains open.** Patch 0178 reads CP_SQE_STAT_ADDR=1 then
+   CP_SQE_STAT_DATA as Linux a6xx_cp_hw_err_irq does and logs recent submissions/IB words.
+   CP_SQE_INSTR_BASE is the microcode base, not a faulting PC. Capture the live dump on a hang.
+
+Latest kernel commits:
+- **0179, 761390e:** preserve the prior session's fix excluding imported BOs from submit-time
+  cache cleaning. Imports are cleaned at BoMap. Never restore cleaning imports at every submit.
+- **0180, 29b1da4:** preserve sweetfb_srcbpr and add opt-in `sweetfb_dump=1` COPY diagnostics.
+  After GPU sync and source cache maintenance, three captures starting at 400 s uptime, at least
+  30 s apart: two 64x32 pixel regions, row RGB/alpha/black-pixel sums, full geometry, and bounded
+  rejection logs. Dumps are observational; they do not fix the corruption.
+
+Both files passed per-file cross-compilation; local kernel build succeeded (log
+`/tmp/umi-0180-build.log`). Image `shim/out/umi-0186-copydump.img` uses the 0184 boot line/ADT
+with normal source stride and sweetfb_dump=1. Payload fits the existing ramdisk page count;
+DTB verified byte-for-byte against check-0176m/dtb. RAM boot succeeded; capture pending.
+Live listener is a Python UDP receive loop writing `/tmp/umi-0186-live.log`; unlike the earlier
+nc listener it remains unconnected so a new phone source port after reboot is accepted.
+The user must run tools/umi-usbnet.sh with sudo after USB re-enumeration.
+
+Session scratchpad: `$HOME/ios-sweet-port/umi-gpu-session.md` (recreated because the old
+one was not found). Retrieved 5120 logs under `/tmp/umi-0185-bpr5120-*`; journals accumulate
+across boots, so their totals cannot be attributed to this boot alone.
 
 ## How to work
 
@@ -102,9 +121,9 @@ complete at hundreds per boot. Two problems are open (NOTES.md umi 0177 has ever
   `shim/out/payload-umi.bin`; then swap the payload into an existing metal image's ramdisk
   (boot image v2, sequential 4096-byte pages: kernel at page 1, ramdisk right after it,
   ramdisk_size at header offset 16; dtb and everything after the ramdisk's page count are kept -
-  the ramdisk's page count must not grow). Verify with `tools/unpack_bootv2.py` (compare the
+  if the ramdisk grows, shift the DTB and tail by the page-count difference). Verify with `tools/unpack_bootv2.py` (compare the
   kernel/dtb with the base image, grep the cmdline out of the ramdisk).
-- Phone: `ANDROID_SERIAL=${UMI_SERIAL}` (two phones attached). Only `fastboot boot` (RAM). Never flash or
+- Phone: select the umi serial from `tools/umi-log-pull.sh` (two phones attached). Only `fastboot boot` (RAM). Never flash or
   wipe; the user flashes `boot` themselves when asked. Logs: from TWRP with `tools/umi-log-pull.sh NAME`;
   live over UDP: `nc -ulk 5140` on the Mac while iOS runs (IOLog only - printf stays in the video
   console / persistent ring; the relay only sees what happens after `tools/umi-usbnet.sh` brings
