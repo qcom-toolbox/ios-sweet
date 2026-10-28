@@ -59,34 +59,41 @@ interplay to remember: backboardd turned the display off ~6 s into a hold, so st
 was refused (it always refused display-off) and it drew anyway; the fade-skip kept the panel on the GPU's
 picture through the "off", so the colours were still shown.
 
-## Where things stand (2026-10-28 evening, patches 0160-0182)
+## Where things stand (2026-10-28 night, patches 0160-0183)
 
 The Metal stack creates real Turnip A650 devices in backboardd and SpringBoard and compiles
-CoreAnimation shaders/pipelines. COPY presents carry varied image data but the panel shows
-moving noise. Pipeline `ok=1` records confirm successful pipeline creation, not correct pixels.
+CoreAnimation shaders/pipelines. **The UI is correct end to end SOMETIMES: the user photographed a
+completely clean frame ("What's New in Photos" welcome card) alternating ~1 s good / 1 s glitchy.
+The noise is a present-vs-render race, not broken output.** All "fundamentally broken" theories
+(stride, layout, tiling, import mapping) are dead.
 
-1. **The noise is in memory; the copy is faithful.** Capture 1 of the 0187 boot (present 69,
-   ~181 s) sampled the presented surface: transparent black at the top-left, WHITE NOISE in the
-   centre (neighbor coherence ~75/255 vs ~2 for photos, both axes). No read-geometry bug exists -
-   the GPU's composited output itself is garbage in the middle, untouched-bzero at the corner.
-   The stride sweep was conclusive (no value could ever fix memory content). The panel shows
-   that noise frozen (presents carry small damage rects; the glitched but recognizable lock-screen
-   clock is one that renders/copies), refreshed by full-screen presents. Frames take 15-60 s at
-   305 MHz; `sweet_adreno_finish()` caps at 500 ms, so present-time copies are mid-render.
-   Two instruments decide the layer: kernel **0182** (idledump: the pending surface sampled
-   every 30 s away from present; per-present rect + finish-outcome logs; copydump regions
-   fixed to the surface's own points) and the extended **vktest** (`test_import`: the
-   drawable's exact IOSurface/linear-import path with A write-before-import, B GPU sample,
-   C write-after-import without a cache push, D with dc civac, E GPU-clear-into-import read
-   back - A/B fail = import read broken, C-fails-D-passes = post-import CPU writes invisible
-   (the missing cache push CA's decoded textures would need), E fails = render-target import
-   broken). vktest A-E results land in /var/local/vktest.log at boot.
-2. **Direct scanout does not update the panel.** Registers point at populated pool memory, but
-   command-mode GRAM stops picking it up around the GPU hold/display-off/on cycle. Keep COPY
-   as the workaround. Compare 0092 before changing DPU programming; re-arming fetch is a hypothesis.
-3. **Intermittent CP_OPCODE_ERROR remains open.** Patch 0178+0181 read the SQE state safely
-   after a stuck fence. Capture the live dump on a hang (the 0187/0182 boots had none - the GPU
-   was slow but never stuck; fences advanced to 5224).
+1. **The race (priority).** The frame the kernel copies is garbage in the middle (white noise,
+   coherence ~75/255) and all-zero at the top-left, BOTH at present time and in idle samples
+   (0182's idledump), and `finish ok` (the newest fence signalled) does not change that. Waiting
+   10 s instead of 0.5 s for the newest fence before the copy (0183, `sweetfb_finwait=N ms`) did
+   NOT fix the screen: the fence the kernel waits is not this frame's. The sync has to come from
+   the presentation path in user space: CA's render server in backboardd sends the framebuffer
+   swap (AppleCLCD sel 79/74) off the Metal command buffer's completion, but the drawable's
+   composite is still running (or the double-buffered surface is already reused for the next
+   frame) when the kernel copies it - one drawable holds the completed frame (the good 1 s), the
+   other gets copied mid-render (the glitchy 1 s; the 4x4-duplicated glitch patterns are
+   mid-render blur-chain content). The bridge does NOT implement drawables/presentation
+   (NativeBridgeMetalFrontend.mm line 8) - trace where the swap is ordered against command
+   buffer completion in the runtime and make it wait.
+2. **Direct scanout** unchanged (CTL_FETCH never re-arms after the hold/off cycle; COPY is the
+   workaround - do not spend time here before (1) is fixed).
+3. **Intermittent CP_OPCODE_ERROR** unchanged; reproduce on a long interactive boot (the dump is
+   armed; the 0182/0183 boots had none).
+
+**vktest import test (A-E matrix)** is on the phone (/private/var/sweet/vktest): the drawable's
+linear-import path measured for coherency in both directions; results tee to
+/var/local/vktest-results.log (launchd's stdout redirect loses output; the run marker is
+/var/local/vktest-run.log). It was SIGKILLed by memory pressure at 11 MB and shrunk to 512x512.
+So far: device up, only VK_KHR_external_memory advertised of the three probed, empty/fill/compute
+PASS; A-E pending a clean boot. **Gotchas: the UDP relay re-streams the persistent ring's tail
+after each reboot (old-boot lines reappear); the Mac's en8 alias drops on USB re-enumeration
+(re-run tools/umi-usbnet.sh); the phone's ue0 once died on re-enumeration (replug the cable);
+kernel [t] stamps are mach_absolute_time ticks @19.2 MHz (verify with a copydump tns pair).**
 
 Latest kernel commits:
 - **0179, 761390e:** preserve the prior session's fix excluding imported BOs from submit-time

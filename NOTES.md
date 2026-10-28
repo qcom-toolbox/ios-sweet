@@ -429,6 +429,51 @@
     Pending capture: /tmp/umi-0187-live.log. Decoder tools/umi-fb-copydump.py renders raw BGRA
     regions and alpha separately, reports missing pixels and row profiles. CI 40754611687 for
     0179/0180 (ios-sweet 4e63ae2) is still queued; local builds remain canonical.
+  - **0182/0183 (2026-10-28, night): THE PANEL SHOWS COMPLETELY CORRECT UI SOMETIMES - the noise is a
+    PRESENT-VS-RENDER RACE, not broken output.** Kernel 0182 (8a31d99) proved the frame in memory is the
+    problem, kernel 0183 (c7a597c) tested the wait; the user's photo settles it: the lock screen flashed a
+    **perfect frame ("What's New in Photos" welcome card, clean text, blue Continue button, ~97% correct),
+    alternating ~1 s good / 1 s glitchy** on the 0182 boot.
+    - **0182's instruments (all verified live):** `sweet_adreno_finish` reports whether the newest fence
+      signalled (present logs it); a per-present swap-rect log (CA presents carry FULL 1125x2436 rects);
+      the copydump's regions moved to the surface's own fixed points (top-left, centre, clock band) so any
+      present dumps; and the new **idledump** samples the pending frame's surface every 30 s away from
+      present. Result: top-left and clock band ALL-ZERO (the clear works), centre WHITE NOISE (coherence
+      ~75/255 both axes), at present time AND idle time - the frame the kernel copies is garbage in the
+      middle, and `finish ok` does not change that.
+    - **0183 (sweetfb_finwait=N ms boot-arg, default 500; boot with 10000):** waiting 10 s for the newest
+      fence before the copy did NOT fix the screen ("not even alternating now, same glitchy ui") - the
+      fence the kernel waits is not this frame's fence. The kernel cannot fix this alone: CA's swap record
+      arrives while the drawable's composite is still running (or the surface is already being reused for
+      the next frame) - **the sync has to come from the presentation path (user space): the swap must be
+      ordered after the drawable's command buffer completes.** The bridge does not implement
+      drawables/presentation (NativeBridgeMetalFrontend.mm line 8); Apple's CA render server in
+      backboardd drives the framebuffer swap (sel 79/74) off the Metal command buffer's completion -
+      trace that path in the runtime (command_buffer/drawable present) next.
+    - The strict 1 s alternation on 0182 = the double-buffered drawables (surfaces 2/3): one holds a
+      completed frame, the other gets copied mid-render; the 4x4-duplicated glitch patterns the user sees
+      are mid-render blur-chain content sampled repeatedly.
+    - **vktest extended** (import coherency test, the drawable's path): builds a linear
+      DRM_FORMAT_MOD_LINEAR host-import image (pitch 4608, 1125x2436, later shrunk to 512x512/2048 after
+      the daemon was SIGKILLed by memory pressure mid-test - `CRASH vktest[66] sig 9`) and measures
+      A write-before-import GPU copy, B a GPU SAMPLE in a draw, C write-after-import with no cache push,
+      D with dc civac, E a GPU clear INTO the import read back. Output went to launchd's redirect and was
+      LOST (the job's stdout vanishes); it now tees to **/var/local/vktest-results.log** and appends a run
+      marker to /var/local/vktest-run.log, retrying 12x30 s for the GPU service. Results so far: device up,
+      Turnip advertises only VK_KHR_external_memory among the three probed; empty/fill/compute PASS; the
+      A-E matrix itself was interrupted (sig 9, then the boot's USB gadget network died).
+    - **Gotchas:** the UDP relay re-streams the persistent ring's last chunk after each reboot (old-boot
+      lines reappear - do not read them as current); the Mac's en8 alias is dropped on USB
+      re-enumeration (re-run tools/umi-usbnet.sh) and the phone's ue0 once DIED on re-enumeration (0183
+      boot: relay stopped at 3 min, phone alive, unreachable - replug the cable); kernel [t] stamps are
+      mach_absolute_time ticks, verified 19.2 MHz on 0182 (present 69's [t] = copydump 1's tns * 52.08).
+    - Images: `shim/out/umi-0182-copydump.img` (0182) and `shim/out/umi-0183-finwait.img` (0183 +
+      sweetfb_finwait=10000), both in-place payload swaps of the 0187 image (same 4174 pages), kernel and
+      DTB verified against check-0182-base/check-0176m. Logs: research/logs/umi-0182-*,
+      umi-0182d-vktest-*, umi-0183-finwait-live.txt. **Next: (a) the presentation sync - find where CA's
+      swap is ordered and make it wait the drawable's command buffer (runtime/bridge); (b) the vktest A-E
+      matrix (recover the network with a cable replug, reboot once); (c) then bug 3 (CP_OPCODE_ERROR)
+      reproduction on a long interactive boot.**
   - **0182 (2026-10-28, evening): THE NOISE IS IN MEMORY, NOT IN THE COPY - and the dumps never fired again.**
     The 0187 boot was analyzed live (USB networking up the whole time): capture 1 (present 69, ~181 s)
     shows the presented surface holds TRANSPARENT BLACK at (20,48) and WHITE NOISE at (528,1202) -
