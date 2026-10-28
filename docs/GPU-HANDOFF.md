@@ -59,31 +59,27 @@ interplay to remember: backboardd turned the display off ~6 s into a hold, so st
 was refused (it always refused display-off) and it drew anyway; the fade-skip kept the panel on the GPU's
 picture through the "off", so the colours were still shown.
 
-## What to do next: Mesa freedreno on the SweetAdreno service
+## What to do next: make the Metal device real, then watch it render
 
-Goal: iOS user space renders with the GPU (Mesa freedreno, later CoreAnimation's GL renderer).
-The kernel side is DONE and proven end to end (2026-10-27, patch 0174): steps 1-23 of the bring-up,
-the A650 CP protect table (0171), the kernel file server (0172) and the SweetAdreno service (0173)
-whose first user-space client - `phone/sweet-gpu-test.c`, a launchd daemon - PASSES: GEM objects
-mapped into the task, an IB submitted, the CACHE_FLUSH_TS fence signalled, the GPU's words read
-back exact. **User space draws with the GPU.**
+The whole Metal-on-Turnip stack is BUILT and INSTALLED (2026-10-28, NOTES 0175b): Turnip for iOS
+(Mesa + UniXNU's darwin backend), the metal2vulkan Rust bridge, and SweetMetal2.bundle pushed to
+/System/Library/Extensions on the phone. With `sweetmtl=2` Metal loads the plugin in backboardd,
+SpringBoard and friends, and they try to create a device. One blocker, already half-solved:
 
-Next, in order:
-
-1. **libdrm-msm stand-in** (`phone/` or `tools/`): wrap the SweetAdreno selectors in the
-   drm/msm API shape Mesa's freedreno backend calls (fd_pipe: chip id / gmem / VA; bo create /
-   map / close; submit as one IB + fence; fence wait). Differences from Linux msm to honour:
-   the kernel hands out GPU addresses (userspace does not allocate them), object memory reaches
-   the task via IOConnectMapMemory(handle), fences are a single 32-bit polled sequence, there is
-   one queue, and GET_PARAM only answers msm_drm.h ids the service knows (0x01, 0x02, 0x03, 0x04,
-   0x07, 0x0e, 0x0f, 0x10, 0x12, 0x13).
-2. **Build Mesa freedreno for arm64/iOS** against the stand-in, push it (plus any shader caches)
-   through the file server, run its utilities first (freedreno tests / a clear-to-panel test like
-   step 22's fill on a scanout BO), then a GL context through CoreAnimation's GL renderer.
-3. **Watch out:** the sweetgpu self-test and user clients share the kernel ring and fence word;
-   the test daemon (com.sweet.gputest) re-runs each boot - remove its launchd.plist cache entry
-   when it is no longer wanted. iOS launchd jobs must be added to /System/Library/xpc/launchd.plist
-   (the cache), not just dropped into LaunchDaemons.
+1. **Boot `shim/out/umi-0175-metal.img` and run `tools/umi-usbnet.sh` after the boot starts.**
+   `/var/local/mtl2-env` now says `TU_DARWIN_SERVICE=SweetAdreno`, so Turnip opens the real
+   NativeAdreno service instead of the empty IOAcceleratorES stand-in. Read `/var/local/mtl2.log`
+   (`tools/umi-files.py get /var/local/mtl2.log /tmp/mtl2.log`): expect "MTL2[...]: device ..."
+   without "refused", and the panel drawn by CoreAnimation through Turnip. The user should watch
+   the screen: wallpaper/buttons should look normal (GPU path) rather than the CPU renderer's.
+2. **Patch 0176 (the proper fix):** make `SweetAdreno` subclass `IOAcceleratorES`, set the Metal
+   plugin properties on IT, and stop publishing the empty "sgx" accelerator when sweetmtl is on -
+   then Turnip's default service match finds the real one and the env file is unneeded (flame's
+   SweetAccelerator architecture).
+3. If devices come up but rendering is wrong: verify gmem_base (0x100000 vs Mesa's a6xx value),
+   check the MTL2/turnip logs for Vulkan errors, and compare against flame's later patches
+   (0117-0122: pool accounting, submit timing, async present, ddr votes) for the quality issues
+   they hit on the way to 20-26 fps.
 
 ## How to work
 

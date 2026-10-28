@@ -248,6 +248,39 @@
     phone/metal2 bridge patches; Rust 1.98, aarch64-apple-ios) into SweetMetal2.bundle, push it over the file
     server, boot sweetmtl=2.** Tools needed locally: rustup + bison 3 (brew); flame's build scripts are the
     recipe (xnu-work/refs/flame-*).
+  - **0175b (2026-10-28, night): METAL-ON-TURPIP BUILT AND ONE STEP FROM RENDERING.** All three components built locally
+    and installed, with `sweetmtl=2` in the boot line (`shim/out/umi-0175-metal.img`, same locally built kernel):
+    1. **Turnip**: Mesa 85fda3b36405 (gitlab.freedesktop.org, blobless clone) + UniXNU patches/mesa (all 9, fetched to
+       xnu-work/refs/unixnu-mesa; turnip-darwin-kmd.patch = tu_knl_darwin.cc) + meson cross (arm64-apple-ios16.0,
+       xnu-work/work/turnip/ios16.cross; needs glslangValidator (brew glslang), bison 3 (brew), python3.13 venv
+       (mako/pyyaml/packaging/meson)) -> libvulkan_freedreno.dylib (17.9 MB, ~2 min build; vkGetInstanceProcAddr
+       exported; only pthread_mutexattr weak refs, present on iOS 16).
+    2. **metal2vulkan bridge**: steelbrain/metal2vulkan @720ef1ce + flame's 8 bridge patches (0001-0006, 0100/0101,
+       from phone/metal2/bridge/patches) + flame's NativeMetalBridge.rs/.h/NativeMetalObjects.rs; Rust 1.98
+       (brew rustup + `rustup target add aarch64-apple-ios --toolchain 1.98.0`), llvm-as .ll fixtures
+       (metal2vulkan-validation) -> libnative_metal_bridge.a (cargo, 71 s).
+    3. **SweetMetal2.bundle**: flame's SweetMetal2.mm + NativeBridgeMetalFrontend.mm (-x objective-c++ -bundle,
+       -fobjc-arc, links the bridge + frameworks Foundation/Metal/IOSurface/IOKit/CoreFoundation; the sources expect
+       a bridge/ subdir with the headers) + Info.plist (NSPrincipalClass SweetMTL2Device) + the Turnip dylib +
+       ad-hoc codesign (dylib then bundle; _CodeSignature/CodeResources). Exports _OBJV_CLASS_$_SweetMTL2Device...
+       (see log) and nmb_* bridge functions. **Installed on the phone** at /System/Library/Extensions/SweetMetal2.bundle
+       (4 files, pushed one by one with the file server).
+    **It WORKS up to the device: backboardd, SpringBoard, chronod, PosterBoard all load the plugin and try to create
+    a Metal device** (log /var/local/mtl2.log: "MTL2[57 backboardd]..." - the plugin writes there when the file exists,
+    mode 666; /var/local/mtl2-clients lists which processes get a device, backboardd always, "*" = all, "-NAME" =
+    never; /var/local/m2v-cache 777 for the shader cache). Two failures found and fixed:
+    1. shader cache PermissionDenied -> create /var/local (777) + m2v-cache (777) FIRST (the plugin mkdirs only the
+       last component).
+    2. `Vulkan(VkResultCode(-3))` on device creation: **Turnip's default opens IOServiceMatching("IOAcceleratorES")**
+       (our empty "sgx" stand-in, no user client) - not SweetAdreno. **Fix installed but NOT YET BOOTED**:
+       /var/local/mtl2-env with `TU_DARWIN_SERVICE=SweetAdreno` (SweetMetal2.mm injects the file's KEY=VALUE lines
+       into the plugin process's environment before Turnip loads; tu_knl_darwin then opens SweetAdreno type 0x4147,
+       tunnels {'NTNL', method, payload} through any selector and probes with method 0xffffffff - our v2 client
+       handles exactly that). **Next session: reboot umi-0175-metal.img (run tools/umi-usbnet.sh after boot!), read
+       /var/local/mtl2.log; expect backboardd/SpringBoard to get real devices and render.** The proper kernel fix
+       (patch 0176, flame's architecture): make SweetAdreno itself subclass IOAcceleratorES with the Metal plugin
+       properties and drop the empty sgx accelerator when sweetmtl is on - one service, no env file needed.
+       Caveat logged for later: gmem_base 0x100000 (flame's A640 value) still to verify against Mesa's a6xx gmem base.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
