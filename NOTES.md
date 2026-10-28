@@ -352,6 +352,42 @@
     and read the offending opcode from the IB; (b) find why backboardd's pipelines fail (MTLFunction errors) and
     whether present is called at all - present()/directPresent() need count+path logging with their own budget;
     (c) then the artifact itself (faint vertical character columns = the console frame garbled, Image #6).**
+  - **0178 (2026-10-28, evening): THE GLITCH WAS STALE MEMORY - AND THE PANEL STILL NEVER PICKS OUR FRAMES UP.**
+    Patch 0178 (kernel 0abb880; all found with the new instruments):
+    1. **The instruments** (SweetFramebuffer/SweetSurface): present() counts every frame swap and logs first
+       8 + every 1024th + any gap > 1 s; directPresent logs each failure reason (layer count / missing surface /
+       shape / address) and on success samples the scanned pixels (left/middle/right of nine rows every 128th
+       present; the first two also walk 16 points across the whole allocation and print the panel geometry);
+       `scanDump()` prints every SSPP's fetch address + stride and the CTL states; full-screen surface creations
+       log without the 64-line budget. SweetAdreno: the stuck-fence dump reads the offending opcode Linux's
+       way (a6xx_cp_hw_err_irq: CP_SQE_STAT_ADDR = 1 -> CP_SQE_STAT_DATA "possible opcode"; CP_SQE_INSTR_BASE
+       turned out to be the SQE MICROCODE base we set at init, not the faulting address - the earlier dump read
+       the firmware, useless), keeps the last 8 submissions and prints the newest IBs' first words.
+    2. **The composited framebuffer was uniformly black (ff000000) or transparent**: CoreAnimation's own
+       pipeline/function journal (`/var/local/m2v-cache/<client>/pipelines.log`, the bridge's S/R/F records)
+       shows every CA pipeline and draw ok=1 - backboardd's compositor works, `com.apple.coreanimation.draw.*`
+       labels, ~1000 draws per boot. The GPU wrote... a black/empty scene.
+    3. **THE CAUSE: imports were never cache-cleaned.** BoImport passed kmap = NULL to v2NewSlot and the
+       submit-path clean skips BOs without a kernel view, so the CPU's writes to an imported IOSurface (the
+       decoded image, whatever another task drew) stayed dirty in the CPU's cache while the GPU sampled stale
+       DRAM through the uncached window mapping. Fix: BoImport creates `md->map()` like BoAlloc, and BoMap
+       cleans an import's pages through that view when they become GPU-visible. After it the scanned rows carry
+       real, varied image data (3e2abf7f 7ef96961... - photo-like values, was: all ff000000).
+    4. **But the panel still shows the boot console pattern (user: "identical to before")**: the DPU registers
+       hold our fetch (scanDump: VIG0 src 0x9ca36050 stride 4608, CTL0 flush 0x20001) and the memory there has
+       content - yet the command-mode panel's GRAM never picks it up. Suspect the DPU fetch/push stopped latching
+       around the display off/on cycle while the GPU hold ran (every boot since 0176: hold until ~268 s, power
+       off ~263 s, on ~272 s, presents from ~272 s; the 0092-era direct scanout worked at boot time with no hold
+       and no power cycle, "user: looked normal, worked well" - and 0175's UI-with-artifacts came from the COPY
+       path memcpy'ing into the boot framebuffer, which the panel does show). **Next: (a) power-cycle test -
+       does the panel visibly fade at off, and what returns at on; (b) why CTL_FLUSH does not fetch: compare the
+       0092 conditions (scanFrom before any off/hold), consider a CTL_START/KICKOFF trigger or re-arming
+       autorefresh at display-on; (c) fallback test: `sweetfb_direct=0` to force the copy path (presents then
+       memcpy into the boot FB, which the panel demonstrably displays) - if the UI shows up there, the bug is
+       purely the direct-fetch latch and the copy path is the workaround; (d) the opcode hang (fence 78 this
+       boot, CP_OPCODE_ERROR, opcode readout instrumented, intermittent ~1 per boot).** Logs:
+       `research/logs/umi-0178b-hang-live.txt`, image `shim/out/umi-0181.img` (the fix), umi-0179/0180 (the
+       pixel-sampling iterations).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
