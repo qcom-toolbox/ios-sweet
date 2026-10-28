@@ -1,6 +1,6 @@
 # umi Adreno 650 bring-up: hand-off for the next session
 
-## Where things stand (2026-10-26)
+## The kernel bring-up (2026-10-26, patches 0160-0170): all 23 steps green
 
 The Xiaomi Mi 10 (umi, SM8250) runs iOS 16.7 on our XNU port. The Adreno 650 bring-up lives in
 `bsd/dev/sweet_adreno.c` (kernel patches 0160-0170 in `xnu/patches/`). It runs only with boot-arg
@@ -59,27 +59,29 @@ interplay to remember: backboardd turned the display off ~6 s into a hold, so st
 was refused (it always refused display-off) and it drew anyway; the fade-skip kept the panel on the GPU's
 picture through the "off", so the colours were still shown.
 
-## What to do next: make the Metal device real, then watch it render
+## Where things stand (2026-10-28, patches 0160-0177)
 
-The whole Metal-on-Turnip stack is BUILT and INSTALLED (2026-10-28, NOTES 0175b): Turnip for iOS
-(Mesa + UniXNU's darwin backend), the metal2vulkan Rust bridge, and SweetMetal2.bundle pushed to
-/System/Library/Extensions on the phone. With `sweetmtl=2` Metal loads the plugin in backboardd,
-SpringBoard and friends, and they try to create a device. One blocker, already half-solved:
+The full Metal stack works end to end: Metal -> SweetMetal2.bundle -> metal2vulkan -> Turnip ->
+SweetAdreno v2 -> the A650. backboardd and SpringBoard both create real devices ("device Turnip
+Adreno (TM) 650", ~1.8 s / ~4.2 s), map BOs, compile shaders on the phone and submit; fences
+complete at hundreds per boot. Two problems are open (NOTES.md umi 0177 has every value):
 
-1. **Boot `shim/out/umi-0175-metal.img` and run `tools/umi-usbnet.sh` after the boot starts.**
-   `/var/local/mtl2-env` now says `TU_DARWIN_SERVICE=SweetAdreno`, so Turnip opens the real
-   NativeAdreno service instead of the empty IOAcceleratorES stand-in. Read `/var/local/mtl2.log`
-   (`tools/umi-files.py get /var/local/mtl2.log /tmp/mtl2.log`): expect "MTL2[...]: device ..."
-   without "refused", and the panel drawn by CoreAnimation through Turnip. The user should watch
-   the screen: wallpaper/buttons should look normal (GPU path) rather than the CPU renderer's.
-2. **Patch 0176 (the proper fix):** make `SweetAdreno` subclass `IOAcceleratorES`, set the Metal
-   plugin properties on IT, and stop publishing the empty "sgx" accelerator when sweetmtl is on -
-   then Turnip's default service match finds the real one and the env file is unneeded (flame's
-   SweetAccelerator architecture).
-3. If devices come up but rendering is wrong: verify gmem_base (0x100000 vs Mesa's a6xx value),
-   check the MTL2/turnip logs for Vulkan errors, and compare against flame's later patches
-   (0117-0122: pool accounting, submit timing, async present, ddr votes) for the quality issues
-   they hit on the way to 20-26 fps.
+1. **The intermittent GPU hang is CP_OPCODE_ERROR** (0177): around the 950th submit of a Metal
+   workload (once in ~15 min), the command processor stops in an indirect buffer of **backboardd's**
+   command stream: ring fully read, fence word stuck at the previous fence, RBBM GPU_BUSY|CP_BUSY,
+   CP_INTERRUPT_STATUS bit 0, no CP_HW_FAULT, no protection violation, no SMMU fault. The stuck-fence
+   dump (patch 0177) logs all of that plus the SQE's instruction address (CP_SQE_INSTR_BASE) and the
+   IB words it is stopped on, read through context 0's PTEs. **Next: catch the hang with that dump
+   running and read the offending opcode.**
+2. **No UI frame ever reaches the panel** - both 0177 boots the panel stayed on the garbled console
+   frame (user: "same artifacts except we don't even see a part of iOS ui"; the 0175 boot DID show
+   UI with artifacts, so 0177's present-path changes may have slowed the frame loop, or
+   backboardd never presents: it logs "vertexFunction/fragmentFunction is not a MTLFunction" (118
+   per boot) and loops "no-copy buffer refused"). **Next: add present()/directPresent() count+path
+   logging with its own budget; check whether backboardd ever creates a full-screen surface; then
+   the artifact itself (faint vertical character columns, Image #6 in the umi NOTES section).**
+   Flame's later patches (0111 gpu-display-mask, 0113 unmap-after-fence, 0117 pool accounting,
+   0119 async present) cover similar ground; refs in `xnu-work/refs/flame-*`.
 
 ## How to work
 
@@ -87,19 +89,30 @@ SpringBoard and friends, and they try to create a device. One blocker, already h
   Compile check: `python3 $HOME/ios-sweet-port/xnu-work/xnu-cc-sys.py
   $HOME/ios-sweet-port/xnu-work/run-0152.log $HOME/ios-sweet-port/xnu-work/bt bsd/dev/sweet_adreno.c`
   (works for `iokit/...cpp` files too).
+- Build locally: `bash tools/build-kernel-local.sh` (4-12 min incremental; trailing dSYM/python
+  steps fail harmlessly - the kernel links). Kernel lands in
+  `xnu-work/bt/build/xnu.obj/DEVELOPMENT_ARM64_SWEET/kernel.development.sweet`.
 - Patch: `git -C .../bt/xnu format-patch -1 --stdout > xnu/patches/01NN-....patch` in
   `$HOME/ios-sweet-port/ios-sweet`, commit, push `umi-scanout`, `gh workflow run xnu.yml --ref umi-scanout`,
   download with `gh run download RUN -R qcom-toolbox/ios-sweet -n xnu-kernel -D xnu/out-01NN`.
   CI sometimes fails with "job was not acquired by Runner" (no macos-14 runner): start a new run.
-- Boot image (no ARM cross compiler on this Mac): `python3 -I tools/mkadt.py shim/out/umi.adt --highmem
-  --board umi`, `tools/mkpayload.py KERNEL shim/out/umi.adt shim/out/payload-umi.bin --cmdline "..."`,
-  then swap the payload into `shim/out/umi-0154-early.img`'s ramdisk (boot image v2; ramdisk_size at
-  header offset 16; everything after the ramdisk is kept). Boot line = the one in `umi-0154-early.img`
-  minus `sweetiolog=wifid`, plus `sweetbattery=2 sweetgpu=22`.
+- Boot image (no ARM cross compiler on this Mac): `bash tools/umi-boot-image.sh KERNEL OUT.img
+  ufslogsecs=2 sweetusb=2 sweetwlan=8 sweetwlandelay=90 sweetwlanssid=<AP> sweetbattery=2
+  sweetgpu=23 sweetmtl=2` - it fails at the shim's gcc but has already written
+  `shim/out/payload-umi.bin`; then swap the payload into an existing metal image's ramdisk
+  (boot image v2, sequential 4096-byte pages: kernel at page 1, ramdisk right after it,
+  ramdisk_size at header offset 16; dtb and everything after the ramdisk's page count are kept -
+  the ramdisk's page count must not grow). Verify with `tools/unpack_bootv2.py` (compare the
+  kernel/dtb with the base image, grep the cmdline out of the ramdisk).
 - Phone: `ANDROID_SERIAL=${UMI_SERIAL}` (two phones attached). Only `fastboot boot` (RAM). Never flash or
-  wipe; the user flashes `boot` themselves when asked. Logs: from TWRP with `tools/umi-log-pull.sh NAME`.
-- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. GPU firmware,
-  Apple files, Wi-Fi network names and device serials stay out of git.
+  wipe; the user flashes `boot` themselves when asked. Logs: from TWRP with `tools/umi-log-pull.sh NAME`;
+  live over UDP: `nc -ulk 5140` on the Mac while iOS runs (IOLog only - printf stays in the video
+  console / persistent ring; the relay only sees what happens after `tools/umi-usbnet.sh` brings
+  the network up, so early-boot lines are missing from it). On-phone files:
+  `tools/umi-files.py get/put` (`/var/local/mtl2.log`, `/var/local/turnip-<proc>.log`).
+- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (or your own
+  attribution line). GPU firmware, Apple files, Wi-Fi network names and device serials stay out of
+  git.
 - References used: Linux v6.12 `drivers/gpu/drm/msm` (a6xx_gpu.c, a6xx_catalog.c, a6xx.xml,
   adreno_pm4.xml), Mesa 24.2 (`src/freedreno/common/freedreno_devices.py`,
   `src/gallium/drivers/freedreno/a6xx/fd6_blitter.cc`, `fd6_screen.cc`, `fd6_emit.h`).

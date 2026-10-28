@@ -311,6 +311,47 @@
     /var/local/mtl2.log (plugin), /var/local/turnip-<proc>.log (Mesa, via /var/local/mtl2-tu-debug "flushall"),
     kernel "SWEET ADRENO: BoMap..." lines in the live log, the retry loop in SweetMetal2.mm (60x5 s), the tunnel
     test in the daemon, vktest installed as com.sweet.vktest.
+  - **0177 (2026-10-28, afternoon): THE METAL HANG IS CP_OPCODE_ERROR; UI STILL NEVER REACHES THE PANEL.** Patch
+    0177 (kernel d41b836, CI `40694264105`), four parts:
+    1. **The present path waits for the GPU and drops stale CPU lines of GPU-written memory**: present() and
+       directPresent() call `sweet_adreno_finish()` (the latest fence, 500 ms cap) first; present's copy path
+       clean+invalidates the source before memcpy and cleans the written panel range after; directPresent
+       flushes (was: clean) the scanned-out range; both SweetSurface creation paths and SweetAdreno's BoAlloc
+       flush after their bzero (BoAlloc's missing clean is why 0176's v2 test read back 0 0 0 0 - fixed, v2 PASS
+       again).
+    2. **SA_TABLES_MAX 64 -> 1024** (every 2 MB of dense window VA costs one L3 table; SpringBoard's 8 MB BoMaps
+       hit NoResources at 64) and a fence wait "forever" fails after **120 s** instead of hanging the caller.
+    3. **The stuck-fence dump**: after 2 s of failed waits on one fence (once per fence, IOLog so it reaches the
+       live log): CP_RB_RPTR vs written WPTR, the fence word, RBBM status/interrupts (a6xx.xml 0x210),
+       CP_HW_FAULT / CP_INTERRUPT_STATUS / CP_PROTECT_STATUS / CP_STATUS_1, the SQE's instruction address
+       (CP_SQE_INSTR_BASE 0x0830, 64-bit), the SMMU's FSR/FAR/FSYNR0, the **last 8 submissions** (fence + every
+       IB's iova and dwords), and the IB words the SQE is stopped on - read through context 0's PTEs from the
+       kernel's own map (`sa_gpu_page`: PTE -> PA -> guarded gPhysBase/gVirtBase translation; the low RAM bank is
+       outside the kernel's physmap on this highmem kernel, and `phystokv` PANICS on it, so the guard is not
+       optional). Submits and BoCpuMaps get log budgets of their own (a shared budget never reached Submit).
+    4. **The finding** (first 0177 boot, ~15 min in): fence 950 dead-stops; dump: *ring fully read (1674 of
+       1674), fence word stuck at 949, RBBM 0x800005 = GPU_BUSY_IGN_AHB|CP_BUSY|CP_AHB_BUSY, CP interrupt
+       status 0x1 = **CP_OPCODE_ERROR** (a6xx.xml A6XX_CP_INT), CP fault 0, protection 0, no SMMU fault bits* -
+       the command processor hit a bad opcode in **backboardd's** IBs (the stuck fences' BoMaps are all in
+       backboardd's 0x200000000 window; fences 932-950 were brief 0-ns poll timeouts right before, i.e. the
+       workload was already slow, then 950 never came back). NOT a lost fence write (the core would be idle
+       then). The hang is a command-stream bug somewhere around Turnip's ~950th submit - next: catch it with
+       part 3's SQE address + IB words (that boot predates them; the second 0177 boot, with them, ran 30+ min
+       and 1300+ fences with NO hang - it is intermittent, roughly once per 15 min of Metal workload).
+    **Display status both 0177 boots: the panel never shows the UI** - it stays on the garbled console frame
+    (user: "same artifacts except this time we don't even see a part of iOS ui"; the 0175 boot did show UI with
+    artifacts, so the present path got SLOWER to reach: suspect `sweet_adreno_finish()` in present() making
+    backboardd's frame loop miss, or the UI never presenting since). backboardd still loops "no-copy buffer
+    refused" and logs "vertexFunction/fragmentFunction is not a MTLFunction" (118 in one boot) - its pipelines
+    fail to build, likely the real reason nothing is presented. AegirPoster/CollectionsPoster/SiriTTS
+    crash-loop (MTL2 answers "not listed" for them). Log: `research/logs/umi-0176-metal-hang-live.txt` (the
+    0176 boot's fence-375 storm), `shim/out/umi-0177-metal.img` (boot line: umi-0176-metal's +
+    build via `tools/build-kernel-local.sh` + `tools/umi-boot-image.sh KERNEL OUT <extras>` which fails at the
+    shim's missing cross gcc, then swap `shim/out/payload-umi.bin` into the boot image's ramdisk: sequential
+    pages, ramdisk_size at header offset 16). **Next: (a) reproduce the opcode hang with the SQE-address dump
+    and read the offending opcode from the IB; (b) find why backboardd's pipelines fail (MTLFunction errors) and
+    whether present is called at all - present()/directPresent() need count+path logging with their own budget;
+    (c) then the artifact itself (faint vertical character columns = the console frame garbled, Image #6).**
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
