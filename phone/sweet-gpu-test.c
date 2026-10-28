@@ -250,6 +250,22 @@ v2call(io_connect_t c, uint32_t method, const void *in, size_t insz, void *out, 
 	return IOConnectCallStructMethod(c, method, in, insz, out, outsz);
 }
 
+/* Turnip's tunnel form: {'NTNL', method, payload} through the first admitted selector. */
+static kern_return_t
+v2tun(io_connect_t c, uint32_t method, const void *in, size_t insz, void *out, size_t *outsz)
+{
+	uint8_t buf[8 + 416];
+	if (insz > 408 || insz + 8 < 8) {
+		return KERN_INVALID_ARGUMENT;
+	}
+	((uint32_t *)buf)[0] = 0x4e544e4cu;       /* 'NTNL' */
+	((uint32_t *)buf)[1] = method;
+	if (insz) {
+		memcpy(buf + 8, in, insz);
+	}
+	return IOConnectCallStructMethod(c, 0, buf, 8 + insz, out, outsz);
+}
+
 static int
 v2_test(void)
 {
@@ -289,6 +305,7 @@ v2_test(void)
 	fprintf(logf, "v2: Query -> abi %u, input bits %u, output bits %u, max bo %#llx\n",
 	    params.abi_version, params.input_bits, params.output_bits, (unsigned long long)params.max_bo_bytes);
 
+
 	struct NativeAdrenoAbiDeviceInfo di;
 	sz = sizeof(di);
 	k = v2call(c, NativeAdrenoMethodGetDeviceInfo, NULL, 0, &di, &sz);
@@ -299,6 +316,28 @@ v2_test(void)
 	fprintf(logf, "v2: DeviceInfo -> chip id %#x, gmem %#x at %#llx, va %#llx..%#llx, hbb %u, ubwc %u\n",
 	    di.chip_id, di.gmem_bytes, (unsigned long long)di.gmem_base, (unsigned long long)di.va_start,
 	    (unsigned long long)(di.va_start + di.va_size), di.highest_bank_bit, di.ubwc_version);
+	/* the tunnel form Turnip uses (probe selector 0, method 0xffffffff answers success) */
+	uint32_t probe[2] = { 0x4e544e4cu, 0xffffffffu };
+	k = IOConnectCallStructMethod(c, 0, probe, sizeof(probe), NULL, NULL);
+	fprintf(logf, "v2: tunnel probe -> %#x (%s)\n", k, k == KERN_SUCCESS ? "admitted" : "REFUSED");
+	struct NativeAdrenoAbiParams p2;
+	sz = sizeof(p2);
+	k = v2tun(c, NativeAdrenoMethodQuery, NULL, 0, &p2, &sz);
+	fprintf(logf, "v2: tunnel Query -> %#x, abi %u\n", k, p2.abi_version);
+	struct NativeAdrenoAbiBoAlloc ba2 = { .bytes = 16384, .align_log2 = 12, .contiguous = 0 };
+	struct NativeAdrenoAbiBoAllocReply br2;
+	sz = sizeof(br2);
+	k = v2tun(c, NativeAdrenoMethodBoAlloc, &ba2, sizeof(ba2), &br2, &sz);
+	fprintf(logf, "v2: tunnel BoAlloc -> %#x, handle %llu\n", k, (unsigned long long)br2.handle);
+	struct NativeAdrenoAbiBoMap bm2 = { .handle = br2.handle, .iova = di.va_start, .permissions = 3,
+		.writeback = 0, .shareability = 2, .reserved = 0 };
+	struct NativeAdrenoAbiBoMapReply bmr2;
+	sz = sizeof(bmr2);
+	k = v2tun(c, NativeAdrenoMethodBoMap, &bm2, sizeof(bm2), &bmr2, &sz);
+	fprintf(logf, "v2: tunnel BoMap(%llu at %#llx) -> %#x (%s)\n", (unsigned long long)bm2.handle,
+	    (unsigned long long)bm2.iova, k, k == KERN_SUCCESS ? "mapped" : "REFUSED - the Turnip failure");
+	struct NativeAdrenoAbiBoFree bf2 = { .handle = br2.handle };
+	(void)v2tun(c, NativeAdrenoMethodBoFree, &bf2, sizeof(bf2), NULL, 0);
 
 	/* two objects: commands and data, at addresses we pick in our window */
 	struct NativeAdrenoAbiBoAlloc ba = { .bytes = 16384, .align_log2 = 12, .contiguous = 0 };

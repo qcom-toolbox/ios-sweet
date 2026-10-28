@@ -281,6 +281,36 @@
        (patch 0176, flame's architecture): make SweetAdreno itself subclass IOAcceleratorES with the Metal plugin
        properties and drop the empty sgx accelerator when sweetmtl is on - one service, no env file needed.
        Caveat logged for later: gmem_base 0x100000 (flame's A640 value) still to verify against Mesa's a6xx gmem base.
+  - **0176 (2026-10-28, midday): BACKBOARDD HAS A METAL DEVICE.** Four kernel fixes, each found live on the phone
+    (patch 0176, all in `sweet_adreno.c`/`SweetAdreno.cpp`/`pmap.c`):
+    1. **GPU windows are per-TASK now, not per-connection** (SA_WINDOW_MAX 32): Turnip learns its VA range once
+       (GetDeviceInfo), closes the connection and reopens for the device - a new connection of the same process must
+       return the SAME window, or BoMap refuses with kIOReturnBadArgument ("iova outside window" in the kernel log:
+       BoMap(0x200000000) refused because that connection's window was 0x300000000). This was THE v2/Turnip blocker.
+    2. **pmap_sync_page_attributes_phys: ptoa, not pp << PAGE_SHIFT** - ppnum_t is 32 bits, so high pages lost bit 32
+       and phystokv_range PANICKED on the truncated low PA (0x733c0000 etc.) the first time a BO page's cache
+       attributes changed (Metal maps BOs write-combined). Same fix as flame's patch 0115 - we should have taken it
+       with their other patches.
+    3. sweet_adreno.c's phys-mode cache flushes (sa_to_memory, the page-table flushes, the fence word, the zap
+       header) are VA-based: the physical form only knows the kernel image's pages and RAM from 4 GB up on this
+       highmem kernel (ADT: RAM = 0x100000000..0x1fcc00000 ONLY; mkadt HIGH_PHYS_BASE/HIGH_MEM_SIZE).
+    4. BoMap logs its request + which check refused - the instrument that found (1).
+    **On the phone (`shim/out/umi-0176-metal.img`, sweetgpu=23 sweetmtl=2): `MTL2[57 backboardd]: device Turnip
+    Adreno (TM) 650 in 1805 ms` - backboardd created a real Metal device through Metal -> SweetMetal2.bundle ->
+    metal2vulkan -> Turnip -> SweetAdreno v2 -> the A650, and maps BOs in its window (69 seen).** Harmless fallbacks:
+    "no device answer: isLargeMRTSupported ..." (feature queries) and "no-copy buffer refused: HostMemory
+    NotRepresentable" (host no-copy buffers; BoImport is implemented but the runtime wants more).
+    **Still open (next session):** (a) the daemon's v2 test REGRESSED this boot - submit ok, `WaitFence(8) signalled`,
+    but the CP_MEM_WRITE data reads 0 0 0 0 (v1 PASSes the same flow; suspect the v2 readback path or a cache
+    attribute of the WC-mapped IOBMD pages after fix (2)/(3) - check whether the GPU write landed at the iova
+    through map_at or in the wrong pages); (b) **SpringBoard's device attempt wedges** (two connections into its
+    0x500000000 window, 5 BoMaps, then nothing - its attempt runs >10 min; the panel shows only the kernel console
+    because no frame swap ever happens, touch works); (c) the xpcproxy/bluetoothd exec loop looks busier than the
+    usual background one when Metal clients are stuck - check for jetsam/memory pressure with every daemon in
+    mtl2-clients "*" creating a full Vulkan stack (~trim "*" to backboardd+SpringBoard first). Debug aids in place:
+    /var/local/mtl2.log (plugin), /var/local/turnip-<proc>.log (Mesa, via /var/local/mtl2-tu-debug "flushall"),
+    kernel "SWEET ADRENO: BoMap..." lines in the live log, the retry loop in SweetMetal2.mm (60x5 s), the tunnel
+    test in the daemon, vktest installed as com.sweet.vktest.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
