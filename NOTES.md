@@ -461,7 +461,14 @@
       LOST (the job's stdout vanishes); it now tees to **/var/local/vktest-results.log** and appends a run
       marker to /var/local/vktest-run.log, retrying 12x30 s for the GPU service. Results so far: device up,
       Turnip advertises only VK_KHR_external_memory among the three probed; empty/fill/compute PASS; the
-      A-E matrix itself was interrupted (sig 9, then the boot's USB gadget network died).
+      A-E matrix itself was
+    interrupted (sig 9, then the boot's USB gadget network died); after the 240 s storm-delay it
+    reached the import (image pitch verified = the requested 2048) and then BLOCKED 12+ min inside
+    vkAllocateMemory - the kernel's BoImport wiring never-faulted anonymous pages under memory
+    pressure (CA's real imports are pre-wired IOSurface pages and do not hit this). To finish: memset
+    the host memory right after mmap, or build the surface through the raw IOCoreSurfaceRoot user client
+    (the IOSurface framework binary is not on disk - it lives in the dyld shared cache; the daemon's
+    earlier total silence was launchd's lost stdout redirect, not the framework).
     - **Gotchas:** the UDP relay re-streams the persistent ring's last chunk after each reboot (old-boot
       lines reappear - do not read them as current); the Mac's en8 alias is dropped on USB
       re-enumeration (re-run tools/umi-usbnet.sh) and the phone's ue0 once DIED on re-enumeration (0183
