@@ -658,6 +658,20 @@
     WC to Turnip: mismatched memory attributes on one page, the prime suspect for bug 2 (fresh command
     BOs zero at submit). Next: read 0196's verdict; if the pages agree, make BoAlloc's kernel view WC
     (or flame's pool) and drop the cached alias; consider per-connection windows as flame does.
+  - **0196 verdict (2026-10-29, research/logs/umi-0196-hang.txt): the GPU page table points at ANOTHER
+    BO's page.** Three bad IBs, all fresh 16K command BOs (handles 453/477/490): "GPU PTE page
+    0x1bd648000, BO page 0x1a281c000 (DIFFERENT); through the kernel map it reads 0x70460001" - Turnip
+    wrote the commands into the BO, the CP fetched someone else's page. No map was refused.
+    **Root cause (Turnip darwin backend, tu_knl_darwin.cc): the one per-process connection was not
+    counted.** tu_knl_darwin_load (enumeration) opened and CLOSED it unconditionally, and every
+    darwin_device_finish closed it, so a second instance/device in backboardd/SpringBoard (two "v2
+    client" opens per process in every log) closed the connection under a live device: the kernel
+    freed and unmapped all its BOs; the reopened client got the same per-task window and handles from
+    1 again, and the live device's old handles named the new client's BOs (BoFree/BoMap on the wrong
+    BO). Bug 1 (overlap) and bug 2 (zero IBs) are both this. **Fix phone/turnip/0003**: probe reuses
+    an open connection; devices acquire/release a count; only the last release closes. Installed on
+    the phone with 0196 (diagnostics on); test pending. Credit: ios-flame's per-connection windows and
+    the user's pointer to it led to the connection lifetime. Rollback dylib unchanged (prev.dylib).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
