@@ -644,6 +644,20 @@
       mapping reuse?). Logs: research/logs/umi-0195-hang.txt, umi-0195e-hang.txt,
       umi-0195e-tu-bo-backboardd.txt. Rollback dylib: xnu-work/work/m2v-bridge-src/out/
       libvulkan_freedreno.prev.dylib.
+  - **0196 + ios-flame comparison (2026-10-29).** Kernel **0196** (5fc32a3): when the submit check
+    finds a bad word, the client's Submit finds the BO covering it and logs the GPU PTE page, the BO's
+    own page (getPhysicalSegment) and the word through the BO's kernel map. Booted
+    (shim/out/umi-0196-pagecmp.img); the phone hung; result pending a TWRP pull (not in UDP).
+    **github.com/NWylynko/ios-flame (Pixel 4, our bridge/Turnip source) does two things differently,
+    one per bug:** (1) flame 0115 gives each v2 CONNECTION its own 4 GB window
+    (sweet_gpu_window_alloc; METAL-NEXT.md: "a shared table would let processes collide") - ours is
+    per task (bug 1, worked around by phone/turnip/0001); (2) flame's BoAlloc takes memory from a GPU
+    pool XNU does not manage, zeroed through a WRITE-COMBINED kernel view ("no cacheable alias"),
+    freed pool memory waiting as a zombie until IOKit drops every task mapping - ours is an
+    IOBufferMemoryDescriptor of managed RAM zeroed through a CACHED kernel map (md->map()) and mapped
+    WC to Turnip: mismatched memory attributes on one page, the prime suspect for bug 2 (fresh command
+    BOs zero at submit). Next: read 0196's verdict; if the pages agree, make BoAlloc's kernel view WC
+    (or flame's pool) and drop the cached alias; consider per-connection windows as flame does.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
