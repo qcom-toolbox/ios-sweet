@@ -75,9 +75,10 @@ device-info values from SweetAdreno.
 - Lesson: when output looks like never-written memory, check every value the kernel hands to
   Turnip (GetDeviceInfo / msm params) against Linux before suspecting sync.
 
-Open, in order: (1) **random GPU hang** (fence 818 on the 0187 boot, user saw it; the stuck-fence dump
-is in the persistent ring, not UDP - pull from TWRP, decode the possible opcode against
-adreno_pm4.xml); (2) direct scanout re-arm after the display off/on cycle; (3) drop the diagnostic
+Open, in order: (1) **random GPU hang**, two kinds seen: CP_OPCODE_ERROR on a zero dword (0187, fence
+835) and CP busy in a wait with no error (0188, fence 713, IB1 starts with CP_COND_WRITE5). Boot
+`shim/out/umi-0189-ibdump.img` (dumps the 64 dwords at the CP fetch position), reproduce, decode
+against adreno_pm4.xml (NOTES 0188/0189); (2) direct scanout re-arm after the display off/on cycle; (3) drop the diagnostic
 boot-args (sweetfb_dump, finwait 10000, finrounds 6) once the hang is understood. Current image:
 `shim/out/umi-0187-macrotile.img`.
 

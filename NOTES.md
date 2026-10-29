@@ -549,6 +549,24 @@
       persistent ring - pull it from TWRP (needs the user's OK) and decode against adreno_pm4.xml;
       (2) direct scanout (sweetfb_direct=0 copy path is still the workaround); (3) the stride/finwait
       boot-args are diagnostics and can be dropped from the boot line.
+  - **0188/0189 (2026-10-29): the random hang has two faces; diagnostics sharpened.**
+    - 0187 boot (TWRP pull, research/logs/umi-0187-hang.txt): fence 835, ring read 3488 of 3549, fence
+      word 834, RBBM 0x800005, **CP_OPCODE_ERROR with possible opcode 0** (the CP fetched a zero dword
+      as a packet header: an IB longer than written, freed/reused, or an IB2 into unwritten memory),
+      no fault/protection/SMMU. The dump printed the newest submission's IB heads, not the stuck one's.
+    - **0188** (kernel 52f042e): dump CP_IB1/IB2_BASE + REM_SIZE (Linux v6.12 a6xx.xml 0x928/0x92a/
+      0x92b/0x92d, as a6xx_dump) and the stuck fence's IB heads. 0188 boot (live log
+      research/logs/umi-0188-hang-live.txt): fence 713, ring 6720 of 7379, **CP busy, interrupts 0**
+      (no opcode error this time), IB1 0x206374000 with 1100 dwords left, its first word 0x70450008 =
+      CP_COND_WRITE5 (adreno_pm4.xml; Turnip's VSC overflow check). Fences 722-729 queued behind.
+      Fence 713 had left the 8-entry history and the IB2 line was lost over UDP. CP_IB1_BASE read
+      back page-aligned: it is the IB's start, not an advancing pointer.
+    - Ruled out: cross-submission semaphore/event deadlocks (tu_knl_darwin.cc waits all syncs on the
+      CPU before submit; metal2vulkan never uses VkEvents).
+    - **0189** (kernel 6ab3d34): 64-entry history, only the stuck submission printed, the 64 dwords
+      before start + (size - left) of the IB CP_IB1_BASE names, IB2's first 32 dwords. Image
+      `shim/out/umi-0189-ibdump.img` (built, verified, NOT booted yet: the phone stayed frozen in iOS).
+      **Next: boot it, reproduce, decode the packet at the fetch position against adreno_pm4.xml.**
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
