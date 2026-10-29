@@ -588,6 +588,24 @@
       pipeline + made VkPipeline until completion). **Next: dump the CP_SET_DRAW_STATE groups of the
       stuck IB2 (address, first words, free-history lookup) to find which group is zero and whose
       BO it was; suspect pipeline/state suballocation reuse while a command buffer still refers to it.**
+  - **0192/0193 (2026-10-29): the zero the CP runs is not in memory when the dump looks.**
+    - **0192**: the dump walks IB1 (start to fetch position) and IB2 packet by packet and lists the
+      CP_SET_DRAW_STATE groups in force. 0192 boot (live research/logs/umi-0192-hang-live.txt, TWRP
+      pull umi-0192-hang.txt): fence 368, CP_OPCODE_ERROR, opcode 0; IB1 = IB 11 of 390 dwords, 96
+      fetched, valid type-4 writes (same Turnip preamble as 0190's IB1 at +0x80); IB2 0x20631c000 had
+      **0 dwords left** - a finished draw-state group (CP_SET_MARKER, CP_COND_REG_EXEC, register
+      writes; 49 valid dwords = its length); no SET_DRAW_STATE in the walked range; the IB addresses'
+      frees are early-boot reuse only.
+    - Conclusion over 0191/0192: the CP faults on a zero dword while every command word the kernel
+      reads 2 s later is valid. Our submit matches Linux a6xx_submit (CCU invalidates, IBs,
+      CACHE_FLUSH_TS) and rings after flush_dcache's DSB. Leading theory: the GPU fetched a command
+      buffer before the CPU's write-combined stores to it had landed (recording thread != submitting
+      thread), or the buffer was rewritten after the fault.
+    - **0193**: submit-time check - walk every IB (type 4/7 headers) before the doorbell; at the first
+      non-header word log it and re-read 1 ms later (32 reports max). Image
+      `shim/out/umi-0193-ibcheck.img`, booted. If it reports words that become valid 1 ms later, the
+      fix is a write barrier on the recording side (Turnip darwin: dsb before handing a submit to
+      the kernel, or the kernel IPI-DSB / reading back the IB tail before ringing).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
