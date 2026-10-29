@@ -672,6 +672,17 @@
     an open connection; devices acquire/release a count; only the last release closes. Installed on
     the phone with 0196 (diagnostics on); test pending. Credit: ios-flame's per-connection windows and
     the user's pointer to it led to the connection lifetime. Rollback dylib unchanged (prev.dylib).
+  - **0197 (2026-10-29): the refcounted Turnip connection did NOT fix it - the BO's own pages move.**
+    0196 + phone/turnip/0003 boot (research/logs/umi-0196c-hang.txt): still "GPU PTE page X, BO page
+    Y (DIFFERENT)" from fence 96 on, in fresh 16K command BOs whose kernel map holds the commands;
+    the two client opens per process are now sequential (probe closed before the device opens), so
+    the connection was not the cause (0003 kept: harmless, correct). Page tables cannot alias (each
+    L3 is reached through its own L2 entry, all writes under the service lock), so the BO's backing
+    page changed after BoMap: BoAlloc gave Turnip a WIRED KERNEL IOBufferMemoryDescriptor
+    (kIOMemoryKernelUserShared), mapped cached in the kernel and WC into Turnip's task. **Kernel
+    0197 (448f99e)**: BoAlloc = IOBMD kIOMemoryPageable | kIOMapWriteCombineCache (a VM object of
+    its own in WC mode, as ios-flame 0115 describes), kernel view mapped WC too, prepare() wires.
+    Image shim/out/umi-0197-wcbo.img (0196 diagnostics still on), booted; test pending.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
