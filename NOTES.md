@@ -683,6 +683,16 @@
     0197 (448f99e)**: BoAlloc = IOBMD kIOMemoryPageable | kIOMapWriteCombineCache (a VM object of
     its own in WC mode, as ios-flame 0115 describes), kernel view mapped WC too, prepare() wires.
     Image shim/out/umi-0197-wcbo.img (0196 diagnostics still on), booted; test pending.
+  - **0198/0199 (2026-10-29): the PTE is REWRITTEN after BoMap.** 0197 (pageable WC BOs) still showed
+    the mismatch (research/logs/umi-0197-hang-live.txt). **0198** (18102ad) records the page BoMap
+    wrote: research/logs/umi-0198-hang.txt, three BOs (fences 680-686), all "BO page now == BO page at
+    BoMap, GPU PTE page different" = PTE REWRITTEN after BoMap - the BO never moved; something
+    later put another page at its GPU address, and no map was refused (so an unmap + map went over
+    a live BO). Ruled out by reading: v1 bump allocator (sa_bo_next, never reused; no v1 client
+    opened on these boots), L3 table aliasing (sa_phys keeps the in-page offset), import size
+    mismatch (Turnip reserves/imports/maps/frees the same size). **0199** (9213a96): ring of the
+    last 2048 map_at/unmap_at calls (iova, length, first page, process, fence); the bad-word report
+    prints every record covering its address. Image shim/out/umi-0199-maplog.img, booted.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
