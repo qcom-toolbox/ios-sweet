@@ -567,6 +567,27 @@
       before start + (size - left) of the IB CP_IB1_BASE names, IB2's first 32 dwords. Image
       `shim/out/umi-0189-ibdump.img` (built, verified, NOT booted yet: the phone stayed frozen in iOS).
       **Next: boot it, reproduce, decode the packet at the fetch position against adreno_pm4.xml.**
+  - **0190/0191 (2026-10-29): hang dumps that fire, and what they show.**
+    - 0189 boot froze (app switcher; display off, frozen on unlock) with NO dump: clients alternated
+      waits on fences 662/663 and the per-fence 2 s timer restarted on every call. **0190** (kernel
+      commit after 6ab3d34): the trigger keys on the fence word standing still for 2 s, dumps done+1.
+    - 0190 boot (research/logs/umi-0190-hang-live.txt): fence 1291, ring fully read, CP_OPCODE_ERROR,
+      possible opcode 0; IB1 = IB 11 (2155 dwords, 32 fetched); **IB2 0x206470000, 0 left, memory all
+      zero**; the live log shows that iova mapped by handles 424, 420, then 472 (fresh read-only
+      command BO) ~200 lines before the hang. Not a write-visibility race: our doorbell follows
+      flush_dcache's DSB, and the memory is still zero 2 s later.
+    - **0191**: the kernel keeps the last 256 unmaps (iova, len, newest submitted fence, fence word);
+      the dump prints frees covering the IB1/IB2 base. 0191 boot (USB net never came up; TWRP pull,
+      research/logs/umi-0191-hang.txt): fence 349, CP_OPCODE_ERROR, opcode 0; IB1 = IB 3 of 3345
+      dwords at ~1792 in, valid CP_COND_WRITE5 run (VSC overflow checks); IB2 0x2064cc000, 2072 left,
+      begins with a valid CP_SET_DRAW_STATE (0x7043802d) of groups at 0x2010e1300, 0x2010de780,
+      0x2010de838...; both IB bases lie in a range freed at fence 107 (normal reuse). **So the zero
+      dword is in a draw-state group (pipeline/suballocated state), not in IB1/IB2.**
+    - Ruled out so far: Turnip darwin BO free (deferred to the newest submitted fence), its chunked
+      submit (signals the last chunk), metal2vulkan dropping a draw's pipeline (render.rs retains
+      pipeline + made VkPipeline until completion). **Next: dump the CP_SET_DRAW_STATE groups of the
+      stuck IB2 (address, first words, free-history lookup) to find which group is zero and whose
+      BO it was; suspect pipeline/state suballocation reuse while a command buffer still refers to it.**
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for

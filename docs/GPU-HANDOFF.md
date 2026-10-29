@@ -76,9 +76,11 @@ device-info values from SweetAdreno.
   Turnip (GetDeviceInfo / msm params) against Linux before suspecting sync.
 
 Open, in order: (1) **random GPU hang**, two kinds seen: CP_OPCODE_ERROR on a zero dword (0187, fence
-835) and CP busy in a wait with no error (0188, fence 713, IB1 starts with CP_COND_WRITE5). Boot
-`shim/out/umi-0189-ibdump.img` (dumps the 64 dwords at the CP fetch position), reproduce, decode
-against adreno_pm4.xml (NOTES 0188/0189); (2) direct scanout re-arm after the display off/on cycle; (3) drop the diagnostic
+835) and CP busy in a wait with no error (0188, fence 713, IB1 starts with CP_COND_WRITE5). All captured opcode errors
+are opcode 0: the CP executed zeros; 0191 shows IB1/IB2 valid, so the zeros are in a CP_SET_DRAW_STATE
+group (pipeline/suballocated state freed or reused while referenced). Image
+`shim/out/umi-0191-freelog.img` dumps IB positions + free history; next: dump the draw-state groups
+(NOTES 0190/0191); (2) direct scanout re-arm after the display off/on cycle; (3) drop the diagnostic
 boot-args (sweetfb_dump, finwait 10000, finrounds 6) once the hang is understood. Current image:
 `shim/out/umi-0187-macrotile.img`.
 
