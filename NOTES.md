@@ -620,6 +620,30 @@
     the moment it changes (fence, ring position); dump the ring words around CP_RB_RPTR (where the CP
     stands between IBs); walk the CP_SET_DRAW_STATE groups at submit time too (the only command
     memory the submit check does not see).
+  - **0194/0195 (2026-10-29): two Turnip-side bugs behind the GPU hang; one fixed.**
+    - **0194** (deep submit check: follows CP_INDIRECT_BUFFER calls and CP_SET_DRAW_STATE groups;
+      CP_INTERRUPT_STATUS changes logged per submit; ring words at RPTR in the dump). Caught it:
+      fence 540 IB 13 called 0x206448000 (281 dwords) whose memory held PIXELS (0xfff2f2f7) at
+      submit, stable 1 ms later; fence 540 is the hang; the CP error bit rose right there.
+    - **Bug 1 (fixed): overlapping iovas.** The kernel window is per task; Turnip's darwin backend
+      keeps one connection per process but each tu_device ran its own vma heap over that window
+      (backboardd and SpringBoard each make two devices), so devices handed out the same iovas and
+      the second BoMap silently replaced the first's PTEs. Fix: phone/turnip/0001 (process-wide
+      heap in tu_knl_darwin.cc), kernel **0195** (sweet_adreno_map_at refuses to map over a valid
+      PTE; BoMap undoes only its own pieces). Installed: no "map refused" since.
+    - **Bug 2 (open): fresh command BOs read zero at submit after a host import's iova is reused.**
+      0195 boots still hang (user: stalls, recovers, then hangs, display off). Dump + BO log
+      (phone/turnip/0002: /var/local/tu-bo-<pid>.log when /var/local/tu-bo exists; names fixed - the
+      backend overwrote `name` with tu_debug_bos_add()'s NULL): host import h231 0x205354000+0xd8000
+      freed at fence 921, reaped; its iova reused for new command BOs h748/h754 at fence 922; fence
+      924's IB 3 = h754 (302 dwords) reads ALL ZERO from DRAM through the GPU PTE at submit (clean+
+      invalidate first) although Turnip wrote it. Same 0xd8000 host-import pattern 3x per boot.
+      **Next: at a failing submit compare the GPU PTE's physical page with the BO's own pages
+      (getPhysicalSegment) and read the offset through the BO's kernel map** - CPU and GPU views of
+      one BO disagreeing after a host-import free (unwire/complete of the import's pages? IOKit
+      mapping reuse?). Logs: research/logs/umi-0195-hang.txt, umi-0195e-hang.txt,
+      umi-0195e-tu-bo-backboardd.txt. Rollback dylib: xnu-work/work/m2v-bridge-src/out/
+      libvulkan_freedreno.prev.dylib.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for

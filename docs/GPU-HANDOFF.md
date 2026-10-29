@@ -80,8 +80,9 @@ Open, in order: (1) **random GPU hang**, two kinds seen: CP_OPCODE_ERROR on a ze
 are opcode 0: the CP executed zeros; 0191 shows IB1/IB2 valid, so the zeros are in a CP_SET_DRAW_STATE
 group (pipeline/suballocated state freed or reused while referenced). 0193 (submit-time IB walk) found every IB
 well-formed at submit, and CP_INTERRUPT_STATUS is never cleared by us (its opcode bit may be stale).
-Next: clear/timestamp that bit, dump ring words at RPTR, walk draw-state groups at submit (NOTES
-0193 result); (2) direct scanout re-arm after the display off/on cycle; (3) drop the diagnostic
+0195 + phone/turnip/0001 fixed overlapping iovas
+between two Turnip devices per process; still open: fresh command BOs read zero at submit after a
+host import's iova is reused (NOTES 0194/0195) - compare GPU PTE page vs the BO's own pages next; (2) direct scanout re-arm after the display off/on cycle; (3) drop the diagnostic
 boot-args (sweetfb_dump, finwait 10000, finrounds 6) once the hang is understood. Current image:
 `shim/out/umi-0187-macrotile.img`.
 
