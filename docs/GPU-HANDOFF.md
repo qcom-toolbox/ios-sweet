@@ -59,6 +59,15 @@ interplay to remember: backboardd turned the display off ~6 s into a hold, so st
 was refused (it always refused display-off) and it drew anyway; the fade-skip kept the panel on the GPU's
 picture through the "off", so the colours were still shown.
 
+## GPU hang root cause (2026-10-29, patch 0200)
+
+The intermittent CP_OPCODE_ERROR / stuck-fence hang was a race in the kernel's v2 (Turnip) client:
+BoMap's page list (fPageBuf) and the BO table are one per client and were used without a lock while
+Turnip calls from several threads. Concurrent BoMaps mapped each other's pages; the GPU ran other
+buffers' memory as commands. Kernel 0200 serialises the v2 methods (WaitFence excepted). Diagnostics
+0188-0199 (hang dump with IB positions, free history, submit-time IB walk, page comparison, map log)
+remain in the kernel and can be trimmed once 0200 is confirmed. See NOTES 0199/0200.
+
 ## Where things stand (2026-10-29, patches 0160-0187): THE UI IS ON THE PANEL
 
 **The iOS home screen renders correctly through Metal -> metal2vulkan -> Turnip -> A650 (copy path,

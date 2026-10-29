@@ -693,6 +693,19 @@
     mismatch (Turnip reserves/imports/maps/frees the same size). **0199** (9213a96): ring of the
     last 2048 map_at/unmap_at calls (iova, length, first page, process, fence); the bad-word report
     prints every record covering its address. Image shim/out/umi-0199-maplog.img, booted.
+  - **0199/0200 (2026-10-29): ROOT CAUSE OF THE GPU HANG FOUND - an unlocked v2 client.** 0199's map
+    log (research/logs/umi-0199-hang-live.txt), first bad BO at fence 30: "maplog 0x20461b080: map
+    0x204618000+0x20000 first page 0x1b4467000 by backboardd" is the ONLY map of that address - the
+    BO's own BoMap - yet the BO's descriptor page there is 0x1b49e7000. BoMap built its page list in
+    fPageBuf, ONE buffer per client, and Turnip calls the v2 methods from several threads at once
+    with no lock in the kernel: concurrent BoMaps overwrote each other's fPageBuf and each mapped the
+    other's pages at its own address (the BO table, v2NewSlot, BoFree were racing too). Every symptom
+    since 0177 follows: CP_OPCODE_ERROR on zero dwords, pixels as IBs, "PTE rewritten" with no
+    refused map, worse with more GPU threads. **Kernel 0200 (d92a7df)**: per-client IOLock; every v2
+    method but WaitFence runs alone; clientMemoryForType and teardown lock too. Image
+    shim/out/umi-0200-v2lock.img (all diagnostics still on), test pending. The earlier fixes stay:
+    0195 (refuse overlapping maps), 0197 (WC pageable BOs), Turnip 0001/0003 (process-wide heap,
+    counted connection) - each correct on its own, none was this bug.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
