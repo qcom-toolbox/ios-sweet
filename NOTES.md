@@ -703,7 +703,11 @@
     since 0177 follows: CP_OPCODE_ERROR on zero dwords, pixels as IBs, "PTE rewritten" with no
     refused map, worse with more GPU threads. **Kernel 0200 (d92a7df)**: per-client IOLock; every v2
     method but WaitFence runs alone; clientMemoryForType and teardown lock too. Image
-    shim/out/umi-0200-v2lock.img (all diagnostics still on), test pending. The earlier fixes stay:
+    shim/out/umi-0200-v2lock.img (all diagnostics still on). **First 0200 boot: user "No hang"**;
+    backboardd's BO log (research/logs/umi-0200-tu-bo-backboardd.txt) reaches fence 5015 at ~344 s
+    uptime with no hang (earlier boots hung at fences 30-900). The UDP relay did not reach the Mac
+    on that boot (file server fine), so no kernel-side confirmation (bad word / submit check /
+    stuck fence lines) yet - pull the ring from TWRP, or run a longer boot, to confirm. The earlier fixes stay:
     0195 (refuse overlapping maps), 0197 (WC pageable BOs), Turnip 0001/0003 (process-wide heap,
     counted connection) - each correct on its own, none was this bug.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
