@@ -66,7 +66,9 @@ BoMap's page list (fPageBuf) and the BO table are one per client and were used w
 Turnip calls from several threads. Concurrent BoMaps mapped each other's pages; the GPU ran other
 buffers' memory as commands. Kernel 0200 serialises the v2 methods (WaitFence excepted). Diagnostics
 0188-0199 (hang dump with IB positions, free history, submit-time IB walk, page comparison, map log)
-remain in the kernel and can be trimmed once 0200 is confirmed. See NOTES 0199/0200.
+remain in the kernel. **Confirmed on the phone: a 0200 boot ran to fence 5105 with zero diagnostic
+hits (research/logs/umi-0200-run.txt).** Next: trim the diagnostics, the Turnip BO log and the
+diagnostic boot-args; then direct scanout. See NOTES 0199/0200.
 
 ## Where things stand (2026-10-29, patches 0160-0187): THE UI IS ON THE PANEL
 

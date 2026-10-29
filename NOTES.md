@@ -706,8 +706,12 @@
     shim/out/umi-0200-v2lock.img (all diagnostics still on). **First 0200 boot: user "No hang"**;
     backboardd's BO log (research/logs/umi-0200-tu-bo-backboardd.txt) reaches fence 5015 at ~344 s
     uptime with no hang (earlier boots hung at fences 30-900). The UDP relay did not reach the Mac
-    on that boot (file server fine), so no kernel-side confirmation (bad word / submit check /
-    stuck fence lines) yet - pull the ring from TWRP, or run a longer boot, to confirm. The earlier fixes stay:
+    on that boot (file server fine). **Confirmed from the TWRP pull (research/logs/umi-0200-run.txt):
+    7 clients, 62 presents logged (present 2592 at ~457 s), fences to 5105, and ZERO bad words,
+    submit-check hits, stuck fences, refused maps or CP_INTERRUPT_STATUS changes - every earlier
+    boot showed them by fence 30-900. The GPU hang is fixed.** Follow-up: drop the hang diagnostics
+    (0188-0199 dump/walk/maplog, cost per submit), Turnip's BO log (phone/turnip/0002, marker
+    /var/local/tu-bo) and the diagnostic boot-args (sweetfb_dump, finwait 10000, finrounds 6). The earlier fixes stay:
     0195 (refuse overlapping maps), 0197 (WC pageable BOs), Turnip 0001/0003 (process-wide heap,
     counted connection) - each correct on its own, none was this bug.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
