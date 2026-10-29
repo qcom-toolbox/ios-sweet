@@ -606,6 +606,20 @@
       `shim/out/umi-0193-ibcheck.img`, booted. If it reports words that become valid 1 ms later, the
       fix is a write barrier on the recording side (Turnip darwin: dsb before handing a submit to
       the kernel, or the kernel IPI-DSB / reading back the IB tail before ringing).
+  - **0193 result (2026-10-29, TWRP pull research/logs/umi-0193-hang.txt): no IB is malformed at submit.**
+    The submit-time walk logged NOTHING - every IB was a valid type-4/7 packet stream when the
+    doorbell rang - so the late-write theory is out for the IBs the kernel submits. Hang: fence 739,
+    ring read 5456 of 5561, CP busy, "interrupts 0x1"; IB1 = IB 5 of 164 dwords with **0 dwords left**
+    (fully fetched; its tail is a normal Turnip epilogue: CP_SET_DRAW_STATE disable-all, CP_WAIT_FOR_IDLE,
+    CP_REG_TO_MEM, CP_MEM_WRITE, CP_EVENT_WRITEs); IB2 0x208a38000 (0 left) is a CP_SET_DRAW_STATE
+    list in a range last freed at fence 688 (21 frees before; reallocated since).
+    **Caveat found:** our kernel never clears CP_INTERRUPT_STATUS, so its OPCODE_ERROR bit may be
+    stale from an earlier event (0188 hung with it 0). Do not read "possible opcode 0" as this hang's
+    cause until the bit is cleared at init and its first rise is timestamped.
+    **Next diagnostic:** clear CP_INTERRUPT_STATUS at init (and after every dump) and log, per submit,
+    the moment it changes (fence, ring position); dump the ring words around CP_RB_RPTR (where the CP
+    stands between IBs); walk the CP_SET_DRAW_STATE groups at submit time too (the only command
+    memory the submit check does not see).
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for
