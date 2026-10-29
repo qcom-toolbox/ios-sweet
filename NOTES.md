@@ -2,6 +2,40 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **🎉 2026-10-29 0201/0202: Wi-Fi IN SETTINGS - wifid scans, Settings joins an open network, traffic over en0.**
+  Ported from ios-flame (NWylynko/ios-flame, Pixel 4) patch 0123, whose Apple80211 code is ios-topaz 0900 from HackiOS
+  (APSL 2.0, per ios-flame CREDITS.md). Kernel commits in xnu-work/bt/xnu: 3d44864 (0201), 82beb70 (0202).
+  - **0201** takes flame's three generic files unchanged: `bsd/dev/redwood_net.c` (en0 via the ifnet KPI on a "link",
+    SIOCGIFMEDIA says 802.11), `redwood_apple80211.c` (SIOCGA80211/SIOCSA80211 answered: power, channels, scan,
+    scan results, associate, current network; kernel events class 6 for wifid), `redwood_sta.c` (one station
+    thread). Not taken: RedwoodWLAN.cpp / MiniIONetworkStack.cpp (umi has the same in SweetWLAN.cpp /
+    SweetFramebuffer.cpp; `RedwoodWLANStart` publishes umi's pair), topaz 0128 quiesce (already here), keystore
+    wrap/unwrap (only for WPA passwords), flame_wlan (flame's radio is in userland).
+  - **0202** `bsd/dev/sweet_wlsta.c`: umi's in-kernel QCA6390 as the station + en0's link. After stage 8's first
+    scan, `sweet_wlce_htc` hands over to it (boot-arg **`sweetwifid`, default 1**; `sweetwifid=0` = the old kernel
+    join + DHCP + en0 of 0140-0154). sweetwlanssid becomes a standing join request (rejoined after a failed
+    join). sweet_wlce.c: BSS table with signal (snr - 95, ath11k wmi.c), beacon interval, capability, IEs, age;
+    START_SCAN / association / leave callable again (leave = deauth, VDEV_DOWN 0x5007 tag 0x5e, PEER_DELETE 0x6002
+    tag 0x62 -> 0x6007, VDEV_STOP 0x5006 tag 0x5d -> 0x5002, ath11k wmi.h v6.12); link loss from deauth/disassoc,
+    PEER_STA_KICKOUT 0x6001, ROAM 0xb001 reason 2; one lock for poll / transmit / station (waits drop it). While
+    joined a real scan at most every 20 s. With the station the IO80211 entries come with en0, not at
+    AppleCLCD start (`sweetwlanearly=1` forces early). Built locally (tools/build-kernel-local.sh).
+  - **Boot `shim/out/umi-0202-wifid.img`** (0200 image's ramdisk swapped; boot line = 0200's minus sweetfb_dump /
+    finwait / finrounds; live log /tmp/umi-0202.log, not in git: holds network names). en0 attached ~2 min after
+    boot; **wifid found it at once** (CARD_CAPABILITIES, POWER, HW_SUPPORTED_CHANNELS, SCAN_REQ every ~30 s, 8-9
+    SCAN_RESULTs each; scans visit all 13 channels). **No user-space change was needed**: configd made a "Wi-Fi"
+    service for en0 by itself (preferences.plist now holds only that one; ue0 still works, the kernel addresses
+    it), and the wifid -> locationd -> fairplayd hang of 2026-10-25 did not block wifid (fairplayd.H2 still in
+    the launchd cache; ios-flame removed it). The boot-line hotspot was not on the air (join -> ENOENT).
+    **User: "sans mdp ça passe mais avec non"** - an open network picked in Settings joins: ASSOCIATE (23-byte
+    name, no key) -> associated AID 2, link up, configd DHCP on en0, "715 frames sent (105 KB), 583 received
+    (449 KB), 0 dropped". **Password networks fail as expected**: wifid sends the PMK (key kind 6, 32 bytes),
+    sweet_wlsta refuses non-open joins (EAUTH) because the data path sends unencrypted.
+  - Next: WPA2-PSK (EAPOL 4-way handshake with the PMK wifid already gives, then WMI VDEV_INSTALL_KEY for PTK/GTK
+    and encrypt type in the TCL descriptor; ios-flame's phone/wifi/radio.c and ath11k mac.c as references; plus
+    the keystore wrap from flame 0123 so wifid can store passwords); 5 GHz channels; wifid's refused requests
+    (sets 383 / 25, gets 96 / 97 / 106) seem harmless.
+
 - **2026-10-25 GPU (Adreno 650) bring-up started, base: HackiOS** (OOSEX GANG, github.com/oosexgang/hakios-os,
   kernel APSL 2.0 / user space MIT; ios-topaz's GPU work comes from it). `hakios.adreno.c` brings up the Adreno
   642L (SM7325) whose GPU block has the same layout as umi's (0x3d00000 / GMU 0x3d6a000 / gpucc 0x3d90000 / SMMU
