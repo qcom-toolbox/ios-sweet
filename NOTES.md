@@ -514,6 +514,41 @@
     sweetfb_dump=1, in-place payload swap, same 4174 pages, kernel+DTB verified), fastboot-booted;
     0187's live log saved as `research/logs/umi-0187-copydump-live.txt`. **Next: read
     /var/local/vktest.log's A-E matrix and the idledump/presrect/finish logs of the 0182 boot.**
+  - **0184-0187 (2026-10-29): THE iOS UI IS ON THE PANEL, ICONS CLEAN.** The noise was never a
+    present race: two device-info values SweetAdreno gave Turnip were wrong.
+    - **0184** (kernel 2b78d5f, previous session, booted twice but unrecorded): `sweet_adreno_finish`
+      waits for ring quiescence (`sweetfb_finrounds`, default 4). Both boots (/tmp/umi-0184*-live.log)
+      still noise: no fix, harmless, kept.
+    - **The decisive analysis (0184 dumps):** the centre words are uncorrelated in every channel
+      including alpha, ~63% of bits set (bytes 0xef/0xbf/0xfe/0xf7 = single cleared bits), 5% opaque,
+      and identical per surface across captures for minutes - the signature of never-written
+      memory/SRAM, not of a mid-render frame (which stays locally smooth). The drawables are
+      bzero'd+civac'd at creation (copy path: buffer memory, no pool), so the GPU WROTE this.
+    - **0185** (kernel 62dd251): SweetSurface cleans+invalidates a surface at IOSurface write-unlock
+      (trap 3 without kIOSurfaceLockReadOnly); first 32 large ones logged. The Metal runtime maps an
+      IOSurface's texture once (BoMap clean) and keeps it, so later CPU drawing never reached the GPU.
+      Verified live: SpringBoard, mediaserverd (1326x1326, 1271x1823 wallpapers), CollectionsPoster
+      unlock through the kernel. Alone it did NOT fix the screen ("still noise").
+    - **0186** (kernel 9709e90): **gmem_base 0, not 0x100000.** Linux v6.12 adreno_gpu.c
+      MSM_PARAM_GMEM_BASE returns 0 for the A650 family (0x100000 is older A6xx; it is also why
+      hw_init skips UCHE_GMEM_RANGE). Turnip adds gmem_base to every GMEM access made through a
+      texture (tu_clear_blit.cc unaligned tile store - 1125 px is unaligned - and tu_cmd_buffer.cc
+      input attachments): they read 1 MB past the tile data = uninitialised SRAM = the noise.
+      **User: "UI visible"** - home screen, wallpaper, dock, Search, Photos widget, labels, clock.
+    - **0187** (kernel 95d2dce): **macrotile_mode 1.** Step 20 programs RBBM_NC_MODE_CNTL = 1 as
+      Linux v6.12 a6xx_calc_ubwc_config (A650: hbb 16, amsbc, rgb565 predicator, uavflagprd_inv 2,
+      macrotile_mode 1), but both device-info paths told Turnip 0: tiled/UBWC textures came back
+      tile-shuffled with checkered fringes (every app icon, photo in this session). **User: "Icons
+      clean".** Linear surfaces were never affected.
+    - Images (all 0184's boot line, in-place payload swaps of umi-0184-quiesce.img, 4174 pages,
+      DTB = check-0176m): `shim/out/umi-0185-unlockclean.img`, `umi-0186-gmembase0.img`,
+      `umi-0187-macrotile.img` (the current one). Logs: research/logs/umi-0185-unlockclean-live.txt,
+      umi-0186-gmembase0-live.txt (local, research/ is not in git).
+    - **Open:** (1) **random hang on 0187** (user report): fence 818 stuck; the UDP log starts with it
+      already stuck, so the 2 s stuck-fence dump (CP state, possible opcode, IBs) went only to the
+      persistent ring - pull it from TWRP (needs the user's OK) and decode against adreno_pm4.xml;
+      (2) direct scanout (sweetfb_direct=0 copy path is still the workaround); (3) the stride/finwait
+      boot-args are diagnostics and can be dropped from the boot line.
 - **2026-10-25: untethered boot.** User flashed `shim/out/umi-0159-flash.img` (0159, `sweetbattery=2`, hotspot
   boot line, no one-shot resets; SHA-256 9776bd5c...) to `boot` (A-only, 128 MiB); the phone starts iOS on its own.
   Restore stock: `fastboot flash boot ~/ios-umi-backup/boot-read-2026-10-21.img`. `fastboot boot` still works for

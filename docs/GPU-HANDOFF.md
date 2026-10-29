@@ -59,7 +59,29 @@ interplay to remember: backboardd turned the display off ~6 s into a hold, so st
 was refused (it always refused display-off) and it drew anyway; the fade-skip kept the panel on the GPU's
 picture through the "off", so the colours were still shown.
 
-## Where things stand (2026-10-28 night, patches 0160-0183)
+## Where things stand (2026-10-29, patches 0160-0187): THE UI IS ON THE PANEL
+
+**The iOS home screen renders correctly through Metal -> metal2vulkan -> Turnip -> A650 (copy path,
+sweetfb_direct=0), icons included.** The "present race" theory below was wrong: Turnip had two wrong
+device-info values from SweetAdreno.
+
+- **0186: gmem_base must be 0 on the A650** (Linux v6.12 adreno_gpu.c MSM_PARAM_GMEM_BASE: 0 for the
+  a650 family). With 0x100000 every GMEM access through a texture (Turnip's unaligned tile stores,
+  input attachments) read uninitialised SRAM: the full-screen noise (random words, ~63% bits set).
+- **0187: macrotile_mode must be 1** (a6xx_calc_ubwc_config A650; step 20 already writes
+  RBBM_NC_MODE_CNTL 1). With 0 tiled/UBWC textures were tile-shuffled (the icons).
+- **0185: IOSurfaces are cleaned at CPU write-unlock** (trap 3), so CPU drawing into surfaces the GPU
+  keeps mapped reaches memory. Keep: no submit-time clean of imports.
+- Lesson: when output looks like never-written memory, check every value the kernel hands to
+  Turnip (GetDeviceInfo / msm params) against Linux before suspecting sync.
+
+Open, in order: (1) **random GPU hang** (fence 818 on the 0187 boot, user saw it; the stuck-fence dump
+is in the persistent ring, not UDP - pull from TWRP, decode the possible opcode against
+adreno_pm4.xml); (2) direct scanout re-arm after the display off/on cycle; (3) drop the diagnostic
+boot-args (sweetfb_dump, finwait 10000, finrounds 6) once the hang is understood. Current image:
+`shim/out/umi-0187-macrotile.img`.
+
+## Earlier state (2026-10-28 night, patches 0160-0183) - superseded
 
 The Metal stack creates real Turnip A650 devices in backboardd and SpringBoard and compiles
 CoreAnimation shaders/pipelines. **The UI is correct end to end SOMETIMES: the user photographed a
