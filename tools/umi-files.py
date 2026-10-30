@@ -12,6 +12,7 @@ a sync on the phone, so what this writes survives the next reset.
   tools/umi-files.py link TARGET REMOTE          (symlink)
   tools/umi-files.py rm REMOTE
   tools/umi-files.py chmod REMOTE MODE
+  tools/umi-files.py list REMOTE-DIR             (kernel 0204+: "d" dir, "l" link, "-" file)
 """
 import os
 import socket
@@ -60,6 +61,18 @@ def main(argv):
             buf += chunk
         open(args[1], 'wb').write(buf)
         print(args[0], n, 'bytes ->', args[1])
+    elif cmd == 'list':
+        s.sendall(f'LIST {args[0]}\n'.encode())
+        n = int(reply(s).split()[1])
+        buf = bytearray()
+        while len(buf) < n:
+            chunk = s.recv(min(65536, n - len(buf)))
+            if not chunk:
+                raise SystemExit('short read')
+            buf += chunk
+        for line in sorted(buf.decode('utf-8', 'replace').splitlines(), key=lambda l: l.split(' ', 1)[1]):
+            t, name = line.split(' ', 1)
+            print({'4': 'd', '10': 'l', '8': '-'}.get(t, '?'), name)
     elif cmd in ('mkdir', 'link', 'rm', 'chmod'):
         verb = {'mkdir': 'MKDIR', 'link': 'LINK', 'rm': 'RM', 'chmod': 'CHMOD'}[cmd]
         if cmd == 'mkdir' and len(args) == 1:

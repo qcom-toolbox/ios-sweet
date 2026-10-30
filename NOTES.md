@@ -2,6 +2,41 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-30 evening: STOCK APPS RESTORED (31 apps) + kernel 0204 file-server LIST.** Phone files changed (backups in
+  `~/ios-umi-backup/root-edits-2026-10-30/`, not in git): `com.apple.migration.plist` removed once (iOS rewrote it),
+  `/System/Library/DataClassMigrators/CoreLocationMigrator.migrator/CoreLocationMigrator` removed (SHA-256 c9d3bdd1...,
+  mode 0755; put back with `umi-files.py put`).
+  - **Why the apps were missing:** nothing removed them when the root image was built (mkiosroot.sh copies the IPSW
+    whole). iOS keeps the removable apps (Clock, Calendar, Mail, Maps, Notes, Reminders, Contacts, FaceTime, Find My,
+    Files, Books, Music, Podcasts, TV, News, Stocks, Weather, Calculator, Compass, Measure, Magnifier, Translate, Voice
+    Memos, Shortcuts, Tips, Freeform, iTunes Store, Wallet, Health, Fitness, Watch = 31) in
+    `/private/var/staged_system_apps` (placeholders in `/System/Library/AppPlaceholders`); the first-boot data migration
+    installs them (`/System/Library/DataClassMigrators/SystemAppMigrator.migrator`, MISystemAppMigrator ->
+    installcoordinationd/installd, which moves each bundle out of the staging folder). Image v12 skips data migration
+    (`LastSystemVersion` in `com.apple.migration.plist`), so they never got installed.
+  - **Fix:** removed `com.apple.migration.plist` -> migration ran (Apple logo + progress bar). The apps were installed
+    within the first boot (staging folder empty), but the migration never finished: backboardd waits in
+    `DMPerformMigration` (sync XPC to datamigrator), SpringBoard waits in `-[BKSSystemShellService _checkIn]` on
+    backboardd, and the plugin wrapper `com.apple.migrationpluginwrapper` waits in `_CLInternalPerformMigration`
+    (CoreLocationMigrator, sync NSXPC to locationd, which is stuck behind fairplayd, see 2026-10-25). With
+    CoreLocationMigrator's binary removed the migration finished in ~3 min: `LastSystemVersion` 20H392 written back,
+    `DMLastMigrationResults` success false (the missing plugin), IconState lists all 31 apps; the user reported only the iOS 16 wallpaper as still missing.
+  - **Wallpapers:** every poster extension was already there except Weather's (inside Weather.app; back with the app,
+    user sees Weather & Astronomy, Emoji, Color, Photos, Collections, Unity, Pride). The 9 collections under
+    `/Library/Wallpaper/Collections/*.wallpaperCollection` match the IPSW byte for byte (plists fetched with `ipsw extract
+    --remote --files --pattern 'Library/Wallpaper/.*\.plist$'` into research/ipsw-fs, user OK'd). **Still missing: the
+    iOS 16 (WWDC 2022, 7400) wallpaper** - PosterBoard has its descriptor (`/private/var/mobile/Library/Application
+    Support/PRBPosterExtensionDataStore/59/Extensions/com.apple.WallpaperKit.CollectionsPoster/descriptors/0D4C2F5E...`),
+    but its galleryOptions say `featuredConfidenceLevel` 2 (Clownfish/Stripe/Multicolored: 1), so it belongs in the
+    gallery's Featured row, which Proactive (duetexpertd, ATXPosterDescriptorGalleryOptions) fills and which is absent.
+    Next: sample duetexpertd + PosterBoard (`sweetsample=duetexpertd,PosterBoard`).
+  - **0204** (kernel f1555f5, `xnu/patches/0204-umi-files-list.patch`): file server `LIST <dir>` (one "<d_type> <name>"
+    line per entry); `tools/umi-files.py list DIR`. Boot `shim/out/umi-0204-list.img` = 0203's boot line + this kernel.
+  - **Sampler gotcha:** `sweetsample` matches `p_comm`, 16 characters: com.apple.datamigrator is `com.apple.datami`,
+    the plugin wrapper `com.apple.migrat` (the "exec" log lines and SWEET AKS print the longer p_name).
+  - Logs: `research/logs/umi-apps-migr.txt` (TWRP pull of the first migration boot), live log /tmp/umi-apps-migr.log.
+    The Mac's USB hub dropped the phone (no ue0, no fastboot): plug it straight into the Mac.
+
 - **🎉 2026-10-30 0203: WPA2-PSK WORKS - Settings joins a password network, traffic over en0.** Kernel
   71d1fd4 (xnu-work/bt/xnu), patch `xnu/patches/0203-umi-wlan-wpa2-psk.patch`, image `shim/out/umi-0203-wpa2.img`.
   - New `bsd/dev/sweet_wlsec.c`: supplicant half of IEEE 802.11-2016 12.7 for AKM PSK + CCMP. PMK from wifid
