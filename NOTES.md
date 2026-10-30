@@ -2,6 +2,34 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **🎉 2026-10-30 0203: WPA2-PSK WORKS - Settings joins a password network, traffic over en0.** Kernel
+  71d1fd4 (xnu-work/bt/xnu), patch `xnu/patches/0203-umi-wlan-wpa2-psk.patch`, image `shim/out/umi-0203-wpa2.img`.
+  - New `bsd/dev/sweet_wlsec.c`: supplicant half of IEEE 802.11-2016 12.7 for AKM PSK + CCMP. PMK from wifid
+    (ASSOCIATE key kind 6) or PBKDF2-SHA1(passphrase, SSID, 4096); PTK = PRF-384; EAPOL-Key descriptor v2
+    (HMAC-SHA1 MIC, RFC 3394 unwrap of key data); 4-way messages 1-4 and the group key handshake. Crypto checked
+    on the Mac against IEEE 802.11 PBKDF2/PRF vectors, RFC 2202 and RFC 3394 (libkern sha1.h / aes.h).
+  - sweet_wlce.c (ath11k mac.c/wmi.c v6.12): only WPA2-PSK/CCMP APs (group + pairwise CCMP, AKM PSK, MFP not
+    required); our RSN element (caps 0) in the association request and message 2; PEER_ASSOC flag
+    NEED_PTK_4_WAY instead of AUTH; after message 4 VDEV_INSTALL_KEY 0x5009 (tag 0x60, AES_CCM 4; pairwise idx 0,
+    then the GTK with its RSC) -> INSTALL_KEY_COMPLETE 0x5003, then PEER_AUTHORIZE; group rekeys installed from
+    the poll. **Association request capability now carries Privacy (and the AP's short preamble), as mac80211's
+    ieee80211_send_assoc does**: an 802.11ax phone hotspot (RSN caps 0x3c, HT/HE/WMM/WPS) refused every WPA2
+    association with status 45 (INVALID_RSNE_CAPABILITIES) whatever RSN capabilities (0, 0xc, 0x3c, 0x80, 0x8c,
+    0xbc) or HT + WMM elements we sent; with Privacy set it accepted at once. sweet_wldp.c: TCL encrypt type
+    CCMP_128 (6) once the pairwise key is in, OPEN (7) otherwise. sweet_wlsta.c: EAPOL to the handshake, not the
+    stack; a handshake that fails after message 1 (wrong password: AP deauth reason 15) -> EAUTH (wifid: invalid
+    password). Also flame 0123's AppleKeyStore wrap/unwrap (HackiOS) so wifid can store passwords.
+  - Tests (live logs /tmp/umi-0203*.log, TWRP pull `research/logs/umi-0203b.txt`; not in git: network names):
+    0203 on a 2.4 GHz WPA2 hotspot: first try message 2 rejected (AP deauth reason 15, wrong key typed), second
+    try keys in and authorized, encrypted DHCP/ARP/ICMP both ways. 0203b-f: the 802.11ax hotspot refused (status
+    45, see above). **0203g (Privacy bit): user "Connected"** - status 0 first try, keys installed, link up, "1345
+    frames sent (216 KB), 1785 received (1.5 MB), 0 dropped", 1739 transmit completions acked (TQM reason 0).
+    The committed kernel is 0203g minus the retry experiments (RSN caps list, HT + WMM, sweetwlrsncap /
+    sweetwlenc), which never ran on the successful join; that exact build was not booted again.
+  - Debug tips: the Mac's `nc -ulk 5140` locks onto the first sender port and silently drops the stream when
+    the phone's port changes; a plain Python UDP receiver (bind 5140, append every datagram) does not.
+  - Next: 5 GHz channels; HT/VHT rates (peer assoc is legacy 11g); WPA3/SAE and PMF if wanted.
+
 - **🎉 2026-10-29 0201/0202: Wi-Fi IN SETTINGS - wifid scans, Settings joins an open network, traffic over en0.**
   Ported from ios-flame (NWylynko/ios-flame, Pixel 4) patch 0123, whose Apple80211 code is ios-topaz 0900 from HackiOS
   (APSL 2.0, per ios-flame CREDITS.md). Kernel commits in xnu-work/bt/xnu: 3d44864 (0201), 82beb70 (0202).
