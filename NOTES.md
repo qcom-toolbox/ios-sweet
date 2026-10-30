@@ -29,7 +29,11 @@
     Support/PRBPosterExtensionDataStore/59/Extensions/com.apple.WallpaperKit.CollectionsPoster/descriptors/0D4C2F5E...`),
     but its galleryOptions say `featuredConfidenceLevel` 2 (Clownfish/Stripe/Multicolored: 1), so it belongs in the
     gallery's Featured row, which Proactive (duetexpertd, ATXPosterDescriptorGalleryOptions) fills and which is absent.
-    Next: sample duetexpertd + PosterBoard (`sweetsample=duetexpertd,PosterBoard`).
+    **Cause (boot `shim/out/umi-0204-featsample.img`, sweetsample=duetexpertd,PosterBoard,CollectionsPoster):**
+    duetexpertd's threads wait in `+[ATXLocationManager(Singleton) sharedInstance]` (dispatch_once, from
+    ATXUpdatePredictionsManager / ATXNotificationContextManager init) -> CoreLocation -> locationd, stuck behind fairplayd.
+    Same root as the CoreLocationMigrator hang: fixing locationd (fairplayd) brings the Featured row and the iOS 16
+    wallpaper back. Left as is (user: move on).
   - **0204** (kernel f1555f5, `xnu/patches/0204-umi-files-list.patch`): file server `LIST <dir>` (one "<d_type> <name>"
     line per entry); `tools/umi-files.py list DIR`. Boot `shim/out/umi-0204-list.img` = 0203's boot line + this kernel.
   - **Sampler gotcha:** `sweetsample` matches `p_comm`, 16 characters: com.apple.datamigrator is `com.apple.datami`,
