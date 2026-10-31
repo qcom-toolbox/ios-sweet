@@ -2,6 +2,41 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **🎉 2026-10-31 0205: BRIGHTNESS SLIDER DRIVES THE REAL PANEL** (user: "Yes, it works", Control Center slider,
+  boot `shim/out/umi-0205k-bl.img`). Kernel f9da73b (xnu-work/bt/xnu), patch `xnu/patches/0205-umi-backlight.patch`,
+  final image `shim/out/umi-0205-bl.img` (= 0204's boot line + f9da73b; differs from the tested 0205k only by
+  sweetbl_trace gating and comments, not booted itself). No phone files changed.
+  - **Panel** (TWRP recovery dtbo overlay 9 = umi, `xiaomi 38 0c 0a cmd mode dsc dsi panel`): Samsung AMOLED on DSI0
+    (0xae94000), command mode + DSC, brightness = DCS 0x51 long write, big-endian 11-bit (bl-min 2, max 0x7ff, init
+    0x218), HS mode; no WLED. ABL leaves DSI0 ctrl 0x1f5, trig_ctrl 0x4 (DMA trigger SW), cmd_dma_ctrl 0x14000000.
+  - **Kernel side** (SweetFramebuffer.cpp, end of file): DCS writes through DSI0's command DMA as Linux v6.12 msm
+    dsi_host.c (MSM packet `03 00 39 c0 51 HI LO ff`, DMA_BASE/DMA_LEN/TRIG_DMA, poll CMD_DMA_DONE in INTR_CTRL);
+    sent in 50 us - 49 ms (waits for the MDP frame). **The command buffer must be below 4 GB**: an
+    IOBufferMemoryDescriptor with a 4 GB mask came back at 0x103f24000, DMA_BASE took 0x03f24000 and the phone
+    froze (0205e); now the last cont_splash page 0x9e2ff000 (`sweetbl_buf`).
+  - **iOS side** (CoreBrightness in backboardd, from the 20H392 cache): needs a service that `IOObjectConformsTo`
+    AppleARMBacklight with `backlight-control` true and `IODisplayParameters` {brightness {min,max,value}}; with
+    `new-backlight-architecture` true it writes `brightness-nits` (SInt32 nits x 65536) on every slider/ramp step.
+    `DisplayCreateWithID` silently drops the display without `backlight-marketing-table` (CFData uint32 nits x 65536;
+    ours: 21 points, quadratic 0.4 -> 420 nits), and without `backlight-calibration-parameters` (lMaxPanel/lMinPanel
+    etc., read as float and divided by 65536) every slider position became NitsPhysical 1.0 (0205h), plain nits gave
+    0.006 nits (0205i, black). Also `digital-dimming-min-nits` / `user-accessible-max-nits` (CFData x 65536). The
+    `DisplayBrightness` dicts it writes too (NitsPhysical, Brightness, ...) are ignored (decoding them fought the
+    ramp with level 0, 0205j). Mapping: level = nits x 2047 / 420 (`sweetbl_maxnits`), at least 16 (`sweetbl_minlevel`).
+  - **QuartzCore EDR stall (0205b):** once a backlight exists, CA's IOMFBServer registers libEDR callbacks;
+    `EDRGetDefaultMinScalingFactor` waits ~5 s (mach_msg timeout) per call on CoreBrightness's EDR server, which
+    does not answer here -> one frame every ~5 s. Workaround: backboardd's `IOServiceGetMatchingService`
+    (CADeviceHasBacklight) does not see AppleARMBacklight; CoreBrightness uses IOServiceGetMatchingServices and still
+    finds it (`sweetbl_hideca=0` shows it to CA again; untested since the marketing table fix, CoreBrightness may now
+    start its EDR server).
+  - Debug: `sweetbl_trace=1` logs each property user space reads on the backlight with backboardd's user backtrace
+    (`UBT key slide ... bt ...`, `sweet_user_bt_current()` in exception.c) - found the missing marketing table.
+  - Not done / next: **screen off on lock** keeps the panel lit (RequestPowerChange only fades pixels; DCS 0x28/0x10 or
+    level 0 on off, 0x11/0x29 on); **auto-brightness** needs an ambient light sensor driver (none) and locationd is
+    stuck behind fairplayd; **Night Shift / True Tone** go through CoreBrightness CFX + IOMFB color matrix (sel 55
+    SetMatrix is accepted and ignored); the 420-nit top and the curve are guesses (HBM via 0x53 not used).
+  - Live log tip: after each boot the Mac lost 192.168.7.1 on en8 until `tools/umi-usbnet.sh` ran again.
+
 - **2026-10-30 evening: STOCK APPS RESTORED (31 apps) + kernel 0204 file-server LIST.** Phone files changed (backups in
   `~/ios-umi-backup/root-edits-2026-10-30/`, not in git): `com.apple.migration.plist` removed once (iOS rewrote it),
   `/System/Library/DataClassMigrators/CoreLocationMigrator.migrator/CoreLocationMigrator` removed (SHA-256 c9d3bdd1...,
