@@ -2,6 +2,22 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-31 0209: GLINK UP WITH THE SLPI, "IPCRTR" OPEN, QRTR HELLO RECEIVED** (patch
+  `xnu/patches/0209-umi-slpi-glink.patch`, boot `shim/out/umi-0209-glink.img`, same boot line as 0208).
+  - SMEM writes: hwspinlock = TCSR mutex 0x1f40000 + 3 * 0x1000 (write 1, read back 1; 0 to release); private
+    entry at `offset_free_uncached`, must end at or before `offset_free_cached` (an OFFSET from the partition start,
+    not a size: 0209 refused with "partition full"). Allocated 430 (SMP2P out, 340 bytes) and 479 (GLINK tx 16 KiB).
+  - SMP2P: our item {"$SMP", version 1 written last, features SSR_ACK, pid 0 -> 3, entry "master-kernel" = 0},
+    kick IPCC 4/2 -> the SLPI's item 481 gets "smp2p" = 0 and "slave-kernel" = 0x6 (ready + handover) in 10 ms.
+  - GLINK (polled every 10 ms, kick IPCC 4/0; descriptor 478 = tx tail/head, rx tail/head): VERSION 1 both ways (SLPI
+    features 0x7, ack 0x1); the SLPI OPENs mhi_sat (rcid 1), fastrpcglink-apps-dsp (2), IPCRTR (3),
+    LOOPBACK_CTL_DSPS (4); our OPEN of IPCRTR (lcid 1) is acked; it advertises 30 intents (16x0x80, 8x0x200,
+    5x0x480, 1x0x2080), asks RX_INTENT_REQ 0x34 and sends 52 bytes = QRTR v1 HELLO (type 2) from node 9 port
+    0xfffffffe.
+  - **Then, 36.5 s after start: SLPI fatal**, crash reason `err_qdi.c:1038:EF:sensor_process:0x1:TMR_CLNT_1:0x89:
+    dog_virtual_user.c:240:USER-PD DOG detects stalled initialization` - the sensor user PD waits for APPS.
+    Suspects: our QRTR HELLO answer + the service locator (pd-mapper, QMI service 0x40 that Linux hosts for the DSPs),
+    then the sensor registry Android serves over FastRPC (sscrpcd; channel fastrpcglink-apps-dsp).
 - **2026-10-31 0208: THE SENSOR DSP (SLPI) STARTS** - first step to the ambient light sensor / auto-brightness.
   Kernel 716839d, patch `xnu/patches/0208-umi-slpi-start.patch`, boot `shim/out/umi-0208-slpi.img` (0204's line +
   `sweetslpi=1 sweetslpidelay=150`). Firmware: the phone's `modem` partition `image/slpi.mdt` + `slpi.b00-b20`
