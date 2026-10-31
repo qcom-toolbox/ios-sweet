@@ -2,6 +2,24 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-31 0211: FASTRPC - THE SLPI'S SENSOR PD INITIALIZES** (patch `xnu/patches/0211-umi-slpi-fastrpc.patch`,
+  boot `shim/out/umi-0211-fastrpc.img` = 0204's line + `sweetslpi=1 sweetslpidelay=240`).
+  - Files (user OK'd, read-only in TWRP; not in git, `research/sensors-umi/`): vendor (dynamic partition:
+    `/dev/block/mapper/vendor`) `etc/sensors` (sns_reg_config, 47 config JSONs incl. sm8250_tcs3408 / tcs3701 = ams
+    light sensors), persist `sensors` (registry/registry = 187 files, registry/config, sns_reg_version, calibration
+    txt; the FIFO sns_diag_flush left out), sysfs `/sys/devices/soc0/*` (hw_platform UMI, soc_id 356). On the phone
+    in `/private/var/sweet/sensors/{vendor-sensors,persist-sensors,soc0}`.
+  - FastRPC over GLINK channel `fastrpcglink-apps-dsp` (our lcid 2, intents 64 x 0x64): Linux fastrpc.c message
+    {pid, tid, ctx = id << 4 | 2 (sensors PD), handle, sc, addr, size}, payload in low RAM 0xd3000000 (1 MiB), SLPI
+    reads it via SMMU streams 0x541-0x543 -> cb4 (non-translating), sid 1 in address bits 32+. Reply {ctx, retval}.
+  - Sequence (hexagonrpcd behaviour): INIT_ATTACH (handle 1, pid 0, arg tgid) 0; remotectl open
+    "adsp_default_listener" 0; register 0; adsp_listener init2 (handle 3) 0; next2 loop. The SLPI opens "apps_std"
+    3 times, stats/opens soc0 files, sns_reg_config, `oemconfig.so` (missing, fine), opendir + reads the whole
+    persist registry: **3393 reverse calls**, then quiet, **no fatal any more** (before: USER-PD DOG at 36.5 s).
+  - That boot used a 30 s next2 wait and stopped serving at 120 s; the committed kernel waits for the next call
+    without a deadline and keeps GLINK running (not booted yet).
+  - Next: the SEE client over QRTR (service 400 at node 9 port 0xc, QMI + protobuf: suid lookup "ambient_light",
+    enable, events in lux), then an iOS ALS HID service so CoreBrightness can do auto-brightness.
 - **2026-10-31 0210: QRTR WITH THE SLPI + SERVICE LOCATOR; sensor PD still stalls (needs FastRPC)** (patch
   `xnu/patches/0210-umi-slpi-qrtr.patch`, boot `shim/out/umi-0210-qrtr.img`, 0208's boot line).
   - QRTR v1 over GLINK "IPCRTR" (our node 1; TX_DATA into the SLPI's intents, freed on RX_DONE): HELLO both ways. The
