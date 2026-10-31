@@ -2,6 +2,30 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-31 0208: THE SENSOR DSP (SLPI) STARTS** - first step to the ambient light sensor / auto-brightness.
+  Kernel 716839d, patch `xnu/patches/0208-umi-slpi-start.patch`, boot `shim/out/umi-0208-slpi.img` (0204's line +
+  `sweetslpi=1 sweetslpidelay=150`). Firmware: the phone's `modem` partition `image/slpi.mdt` + `slpi.b00-b20`
+  (8.1 MB; pulled read-only in TWRP into `research/slpi-fw/umi/`, not in git; copied with the user's OK to
+  `/private/var/sweet/slpi/` on the iOS root, where the kernel reads it).
+  - **Why the SLPI:** umi's DT has no light-sensor node; every sensor sits behind the SLPI (`qcom,ssc@5c00000`,
+    pas-id 12, `pil_slpi_region` 0x88c00000 + 0x2f00000). Linux path: PAS boot -> GLINK over SMEM (`glink_slpi`,
+    IPCC client 4 signal 0) -> QRTR ("IPCRTR", net 2) -> SEE (sensors QMI service, protobuf) -> "ambient_light".
+    The SLPI also wants its registry from APPS user space (sscrpcd over FastRPC); unknown yet whether it works without.
+  - **Sequence (all answered 0):** AOP QMP (msgram 0xc300000: magic 0x4d41494c v1, our link/channel were down ->
+    opened; doorbell = IPCC 0x408000 + 0xc, client 0 signal 0) took `{class: image, res: load_state, name: slpi,
+    val: on}`; lcx.lvl (0x30030) / lmx.lvl (0x30040) ARC level index 15 (top); `pas_init_image(12, slpi.mdt)`,
+    `pas_mem_setup(12, 0x88c00000, 0x2f00000)`, 20 relocatable segments (linked at 0x88000000) copied in,
+    `pas_auth_and_reset(12)` -> SLPI runs; phone stays up.
+  - **Copy gotchas:** `ml_io_map` of the 47 MiB region panicked (kmem_alloc of I/O space, KERN_NO_SPACE); a 2 MiB
+    ml_io_map window panicked on unmap (permanent map entry, vm_map_delete). Working: a KMA_VAONLY 2 MiB range whose
+    pages are `pmap_enter`ed (WCOMB) / `pmap_remove`d per chunk. bcopy_phys/bzero_phys avoided (dc zva on device).
+  - **After start (SMEM 0x80900000, partition hosts 0-3 at +0x17f000):** the SLPI created item 481 (its SMP2P out,
+    340 bytes, no entries yet), 478 (GLINK descriptor), 480 (its GLINK FIFO, 16 KiB), 608, 611 (4 KiB), 613; item
+    424 = "SFR Init: wdog or kernel error suspected." (the placeholder it writes at boot). Missing = ours: SMP2P out
+    430 and GLINK FIFO 479 -> it waits for APPS. DT `qcom,smem = <481 430>` is { inbound, outbound } (smp2p.c).
+  - **Next:** SMEM allocation (hwspinlock: TCSR mutex 0x1f40000 lock 3) for 430 / 479; SMP2P negotiation; GLINK
+    native (version, channel "IPCRTR", intents); QRTR (reuse sweet_ipcr.c); SEE client for "ambient_light"; then an
+    iOS ALS HID service for CoreBrightness.
 - **2026-10-31 0207: NIGHT SHIFT WORKS** (user: "it works"; boot `shim/out/umi-0207-nightshift.img` = 0204's boot
   line + kernel 0289533, patch `xnu/patches/0207-umi-night-shift-pcc.patch`).
   - **What iOS sends:** QuartzCore `CA::WindowServer::IOMFBDisplay::update_color_matrix` (fed by CoreBrightness) calls
