@@ -8,6 +8,17 @@ As of **2026-10-18** the phone boots to the **iOS home screen**. You can unlock 
 
 > Experimental bring-up, not a usable phone OS. Many things are missing or stubbed (see below), and Apple's security model is mostly switched off. It installs into the `userdata` partition and so **erases Android's user data**.
 
+### Xiaomi Mi 10 (`umi`, Snapdragon 865)
+
+The same kernel also runs the Mi 10, picking its hardware from the device tree. As of **2026-10-31** it boots iOS 16.7.16 to the home screen with the stock apps, and on top of what the table below lists for `sweet` it has:
+
+- **Wi-Fi in Settings:** scanning and joining open and WPA2-PSK networks (in-kernel QCA6390 driver, 2.4 GHz).
+- **GPU bring-up:** the Adreno 650 is powered and runs command streams.
+- **Brightness:** the Control Center and Settings slider drive the real AMOLED panel (DCS 0x51 over DSI).
+- **USB Ethernet** with a live kernel log and a small kernel file server for development.
+
+Not working yet on `umi`: screen-off on lock, auto-brightness, Night Shift, audio, cellular, Bluetooth, sensors. How to build and boot it: [docs/UMI.md](docs/UMI.md); the engineering log is the umi section at the top of [NOTES.md](NOTES.md).
+
 ## What works
 
 | Area | State |

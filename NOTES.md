@@ -36,6 +36,9 @@
     stuck behind fairplayd; **Night Shift / True Tone** go through CoreBrightness CFX + IOMFB color matrix (sel 55
     SetMatrix is accepted and ignored); the 420-nit top and the curve are guesses (HBM via 0x53 not used).
   - Live log tip: after each boot the Mac lost 192.168.7.1 on en8 until `tools/umi-usbnet.sh` ran again.
+- **2026-10-31 repo hygiene:** `umi-scanout` history rewritten (git filter-branch over the 156 commits not on main):
+  the Mac's home path became `$HOME`, the phone's serial `${UMI_SERIAL}`; nothing else changed. Scripts now need
+  `UMI_SERIAL` exported (serial from `fastboot devices`). Keep home paths and serials out of tracked files.
 
 - **2026-10-30 evening: STOCK APPS RESTORED (31 apps) + kernel 0204 file-server LIST.** Phone files changed (backups in
   `~/ios-umi-backup/root-edits-2026-10-30/`, not in git): `com.apple.migration.plist` removed once (iOS rewrote it),
