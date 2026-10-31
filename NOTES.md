@@ -2,6 +2,13 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-31 0206: SCREEN OFF ON LOCK WORKS** (user: "Dark, then back"; boot `shim/out/umi-0206-paneloff.img` =
+  0204's boot line + kernel f8da9ef, patch `xnu/patches/0206-umi-panel-off.patch`). iOS never lowers brightness when
+  backboardd turns the display off (log: `display off` with no brightness-nits write), so RequestPowerChange(0) now
+  also asks the backlight's thread call for level 0 + DCS 0x28; display on sends 0x29 + the wanted level (levels set
+  while off wait). The panel is not put to sleep (no 0x10/0x11), so wake is immediate; CoreBrightness then fades up
+  from 0 to the slider level by itself. Log lines `SWEET BL: panel off -> 0` / `panel on -> 0, level N`.
+  Still open: auto-brightness (no ALS driver), Night Shift / True Tone (IOMFB color matrix sel 55 ignored).
 - **🎉 2026-10-31 0205: BRIGHTNESS SLIDER DRIVES THE REAL PANEL** (user: "Yes, it works", Control Center slider,
   boot `shim/out/umi-0205k-bl.img`). Kernel f9da73b (xnu-work/bt/xnu), patch `xnu/patches/0205-umi-backlight.patch`,
   final image `shim/out/umi-0205-bl.img` (= 0204's boot line + f9da73b; differs from the tested 0205k only by
@@ -31,8 +38,7 @@
     start its EDR server).
   - Debug: `sweetbl_trace=1` logs each property user space reads on the backlight with backboardd's user backtrace
     (`UBT key slide ... bt ...`, `sweet_user_bt_current()` in exception.c) - found the missing marketing table.
-  - Not done / next: **screen off on lock** keeps the panel lit (RequestPowerChange only fades pixels; DCS 0x28/0x10 or
-    level 0 on off, 0x11/0x29 on); **auto-brightness** needs an ambient light sensor driver (none) and locationd is
+  - Not done / next: screen off on lock (done in 0206); **auto-brightness** needs an ambient light sensor driver (none) and locationd is
     stuck behind fairplayd; **Night Shift / True Tone** go through CoreBrightness CFX + IOMFB color matrix (sel 55
     SetMatrix is accepted and ignored); the 420-nit top and the curve are guesses (HBM via 0x53 not used).
   - Live log tip: after each boot the Mac lost 192.168.7.1 on en8 until `tools/umi-usbnet.sh` ran again.
