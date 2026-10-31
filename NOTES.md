@@ -2,13 +2,26 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-31 0207: NIGHT SHIFT WORKS** (user: "it works"; boot `shim/out/umi-0207-nightshift.img` = 0204's boot
+  line + kernel 0289533, patch `xnu/patches/0207-umi-night-shift-pcc.patch`).
+  - **What iOS sends:** QuartzCore `CA::WindowServer::IOMFBDisplay::update_color_matrix` (fed by CoreBrightness) calls
+    `IOMobileFramebufferSetMatrix(fb, 9, m)` = selector 55, scalar 9, 72 bytes = nine **int64 S31.32** (fcvtzs #32 of
+    each float, row-major; decoding them as doubles gave 0 diagonals and -8 entries, 0207/0207b). Devices with
+    CADeviceUseHarmonyXYZD50 send it per frame instead (`swap_set_icc_matrix` -> SetBlock sel 78, block 0x32, 64 bytes
+    {u32 1, IOMFBColorMatrix floats at +0x10}); also handled, never seen here. iOS ramps the matrix in steps.
+  - **Hardware:** ABL's path is CTL0 -> LM0 (CTL0 layer0 0x1000005, only CTL0 active) -> DSPP0. PCC of DSPP0 at MDP
+    0xae01000 + 0x54000 + 0x1700 (Linux v6.12 dpu_6_0_sm8250.h / dpu_hw_dspp.c): enable +0x0, coefficients
+    +0x10..0x30 (RED_R 0x10, GREEN_R 0x14, BLUE_R 0x18, RED_G 0x1c, ...; "RED_G" = input red into output green),
+    1.0 = 0x8000, 18 bits, no negatives (clamped to 0 as Linux does). Flush CTL0 CTL_FLUSH (+0x18) bit 13 (DSPP0,
+    DPU 6.x); MDP autorefresh latches it. ABL leaves PCC off (en 0). Identity -> PCC off. `sweetpcc=0` only logs.
+  - Log: `SWEET PCC: on r .. g .. b .. (/32768)` / `off (identity)`.
 - **2026-10-31 0206: SCREEN OFF ON LOCK WORKS** (user: "Dark, then back"; boot `shim/out/umi-0206-paneloff.img` =
   0204's boot line + kernel f8da9ef, patch `xnu/patches/0206-umi-panel-off.patch`). iOS never lowers brightness when
   backboardd turns the display off (log: `display off` with no brightness-nits write), so RequestPowerChange(0) now
   also asks the backlight's thread call for level 0 + DCS 0x28; display on sends 0x29 + the wanted level (levels set
   while off wait). The panel is not put to sleep (no 0x10/0x11), so wake is immediate; CoreBrightness then fades up
   from 0 to the slider level by itself. Log lines `SWEET BL: panel off -> 0` / `panel on -> 0, level N`.
-  Still open: auto-brightness (no ALS driver), Night Shift / True Tone (IOMFB color matrix sel 55 ignored).
+  Still open: auto-brightness (no ALS driver). Night Shift: done in 0207.
 - **🎉 2026-10-31 0205: BRIGHTNESS SLIDER DRIVES THE REAL PANEL** (user: "Yes, it works", Control Center slider,
   boot `shim/out/umi-0205k-bl.img`). Kernel f9da73b (xnu-work/bt/xnu), patch `xnu/patches/0205-umi-backlight.patch`,
   final image `shim/out/umi-0205-bl.img` (= 0204's boot line + f9da73b; differs from the tested 0205k only by
