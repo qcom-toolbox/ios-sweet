@@ -2,6 +2,20 @@
 
 ## umi (Xiaomi Mi 10, SM8250) port - branch `umi` on qcom-toolbox/ios-sweet (2026-10-20)
 
+- **2026-10-31 0210: QRTR WITH THE SLPI + SERVICE LOCATOR; sensor PD still stalls (needs FastRPC)** (patch
+  `xnu/patches/0210-umi-slpi-qrtr.patch`, boot `shim/out/umi-0210-qrtr.img`, 0208's boot line).
+  - QRTR v1 over GLINK "IPCRTR" (our node 1; TX_DATA into the SLPI's intents, freed on RX_DONE): HELLO both ways. The
+    SLPI (node 9) announces services 0x42 servreg notifier (inst 0x5a01 = 90), 0x2b SSCTL, 0x0f x2, **0x190 = 400 =
+    SEE sensor client (port 0xc)**, 0x33 x2, 0x18.
+  - Our service locator (0x40, inst 0x101, node 1 port 1; Linux qcom_pd_mapper.c sm8250 table) is used: the SLPI asks
+    "tms/pdr_enabled" and "tms/pddump_disabled" (0 domains, as Linux for sm8250) and sends a PFR (0x24) fault report
+    for sensor_process. The boot showed the names without their first letter: top-level QMI strings carry no length
+    byte (fixed afterwards, not booted again).
+  - **sensor_process still dies at 36.5 s** ("USER-PD DOG detects stalled initialization"). Most likely cause: the
+    sensor user PD loads its configuration (sensor JSONs, registry) through reverse FastRPC calls to an APPS daemon
+    (Android sscrpcd / postmarketOS hexagonrpcd serving `/vendor/etc/sensors` + `persist/sensors/registry` through the
+    apps_std interface) over GLINK channel `fastrpcglink-apps-dsp`. Next: FastRPC over GLINK (attach the sensors PD,
+    adsp_listener with apps_std file calls), then the SEE client (service 400, protobuf) for "ambient_light".
 - **2026-10-31 0209: GLINK UP WITH THE SLPI, "IPCRTR" OPEN, QRTR HELLO RECEIVED** (patch
   `xnu/patches/0209-umi-slpi-glink.patch`, boot `shim/out/umi-0209-glink.img`, same boot line as 0208).
   - SMEM writes: hwspinlock = TCSR mutex 0x1f40000 + 3 * 0x1000 (write 1, read back 1; 0 to release); private
